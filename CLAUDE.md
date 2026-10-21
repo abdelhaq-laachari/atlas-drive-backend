@@ -43,14 +43,15 @@ Back office for a car-rental agency (first customer: a friend's agency in Morocc
 - Extra-km fee is a per-km rate and MAY have cents (e.g. 1.50 MAD/km) — the only typed money exception to whole dirhams; the resulting charge goes through `Money::round()`.
 - Cars are never deleted once they have history: they are **archived** (date + reason), hidden from lists and not rentable; rentals, invoices and documents keep pointing to them. Only a car with no history can be truly deleted.
 - Rental lifecycle: Reserved → Active → Returned/Closed, plus Cancelled and Overdue. Vehicle status follows the rental.
-- Driver: minimum age 21, licence held at least 2 years.
+- Driver: minimum age 21, licence held at least 2 years (agency settings `driver_min_age`, `licence_min_years`), checked on the **pickup date** by `App\Support\DriverCheck` (full years like birthdays — same rule as the Vue prototype's `fullYearsBetween`). No licence, blocked or archived → cannot drive. `GET /api/customers/{id}/driver-check?on=YYYY-MM-DD`. The Rentals module must run the same check when a rental is created.
 - Day counting: calendar days + 1 extra day if the return time is later than the pickup time.
 - Late: an active rental is overdue when more than 60 minutes (grace) past its return time, measured in minutes.
 - Deposit: any method (cash, card, cheque, transfer) with a reference; a numbered deposit receipt (DEP-xxxx) is issued.
 - Hand-over / return: time, mileage, fuel in quarters, damage marks `{x, y (normalized), type, size, area, stage: handover|return}`, remarks.
 - Return charges (extra km, late days, fuel at 150 MAD/quarter sample, damages) are **suggested**: the manager can charge, reduce or waive each one with a reason. Never force a charge — the owner often makes exceptions for loyal customers.
 - Damages are also recorded on the car (open / repaired); a rental keeps a frozen copy. Built: `vehicle_damages` (x/y 0–1, area from `App\Support\CarParts`, type, size, found_at, found_stage handover|return|null, status open|repaired, repaired_at, repair_cost, repair_note). Staff record and mark repaired; only the owner reopens or deletes. The Rentals module must add `rental_id` (found in) and create damage at hand-over / return; the customer charge belongs to the rental, the repair cost to the damage.
-- Customers: individual or company. Design data so one contract can later hold several cars with monthly billing (corporate long-term leasing).
+- Customers: built for individuals only (`customers.type` = individual; codes C-001 per agency via `NumberedPerAgency`). ID number unique per agency on `id_key` (letters+digits); phone stored as `+` and digits (search ignores leading zeros: 0611… = +212 611…). ID and licence numbers are masked in the activity log. Licence fields optional (a payer may not drive). Staff add/edit; only the owner blocks (blocklist with reason — blocked customers can't start a new rental) and archives (never deleted).
+- Companies (later, agreed design): company = who signs and pays (name, ICE, RC, contact); drivers are always individual customers (ID + licence + age checks), optionally linked to a company. A rental = one paying customer + one or more drivers (also covers "extra driver"). Design data so one contract can later hold several cars with monthly billing (corporate long-term leasing).
 - Later: booking requests from the public website (staff confirm → Reserved, or reject), notifications, repair cost vs amount charged.
 
 ## Working rules

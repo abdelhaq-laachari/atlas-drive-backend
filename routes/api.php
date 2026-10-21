@@ -2,6 +2,10 @@
 
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CustomerArchiveController;
+use App\Http\Controllers\Api\CustomerBlockController;
+use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\DriverCheckController;
 use App\Http\Controllers\Api\FleetDocumentController;
 use App\Http\Controllers\Api\VehicleArchiveController;
 use App\Http\Controllers\Api\VehicleController;
@@ -41,4 +45,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/vehicle-damages/{damage}', [VehicleDamageController::class, 'destroy']);
     Route::post('/vehicle-damages/{damage}/repair', [VehicleDamageRepairController::class, 'store']);
     Route::delete('/vehicle-damages/{damage}/repair', [VehicleDamageRepairController::class, 'destroy']);
+
+    // Customers (no delete: archived, see CLAUDE.md)
+    Route::apiResource('customers', CustomerController::class)->except('destroy');
+    Route::post('/customers/{customer}/block', [CustomerBlockController::class, 'store']);
+    Route::delete('/customers/{customer}/block', [CustomerBlockController::class, 'destroy']);
+    Route::post('/customers/{customer}/archive', [CustomerArchiveController::class, 'store']);
+    Route::delete('/customers/{customer}/archive', [CustomerArchiveController::class, 'destroy']);
+    Route::get('/customers/{customer}/driver-check', DriverCheckController::class);
 });

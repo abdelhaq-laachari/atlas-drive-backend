@@ -8,6 +8,7 @@ use App\Enums\VehicleCategory;
 use App\Enums\VehicleStatus;
 use App\Models\Concerns\BelongsToAgency;
 use App\Models\Concerns\LogsActivity;
+use App\Models\Concerns\NumberedPerAgency;
 use Database\Factories\VehicleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -42,7 +43,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Vehicle extends Model
 {
     /** @use HasFactory<VehicleFactory> */
-    use BelongsToAgency, HasFactory, LogsActivity;
+    use BelongsToAgency, HasFactory, LogsActivity, NumberedPerAgency;
 
     /**
      * Not shown in footprints (plate_key always follows plate).
@@ -86,15 +87,14 @@ class Vehicle extends Model
         ];
     }
 
-    protected static function booted(): void
+    public function numberColumn(): string
     {
-        // Next fleet number of this agency (archived cars count too, so codes are never reused).
-        // Runs after BelongsToAgency has set agency_id; the unique index guards against duplicates.
-        static::creating(function (Vehicle $vehicle) {
-            $vehicle->fleet_number ??= static::withoutGlobalScopes()
-                ->where('agency_id', $vehicle->agency_id)
-                ->max('fleet_number') + 1;
-        });
+        return 'fleet_number';
+    }
+
+    public function numberPrefix(): string
+    {
+        return 'V-';
     }
 
     /**
@@ -136,7 +136,7 @@ class Vehicle extends Model
      */
     protected function fleetCode(): Attribute
     {
-        return Attribute::get(fn () => 'V-'.str_pad((string) $this->fleet_number, 3, '0', STR_PAD_LEFT));
+        return Attribute::get(fn () => $this->code());
     }
 
     /**

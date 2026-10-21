@@ -34,6 +34,14 @@ then tell Claude so the code and CLAUDE.md are updated.
 16. **Damage:** may staff mark a damage as repaired and enter the workshop cost (now: yes), or only you?
     Do you want **photos** of damage at hand-over / return?
 
+## Customers
+17. Which customer details are **required** for you (now: name, phone, ID type + number, nationality, birth date;
+    email, address and licence optional)? Do you keep a **copy/photo of the CIN / passport / licence**?
+18. **Blocklist:** only you block/unblock customers (now), or trusted staff too?
+19. Do you rent to **companies** today? If yes, how many and how do you bill them (monthly invoice, several cars)?
+20. **Foreign customers:** do you accept a foreign driving licence as is, or do you require an international
+    driving permit? Any different age / licence rule for them?
+
 ## Agency details (for contracts and invoices)
 14. Real agency name, address, phone, email, logo, legal numbers (ICE, RC, IF, patente).
 

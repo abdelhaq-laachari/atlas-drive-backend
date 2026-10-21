@@ -243,3 +243,57 @@ Each entry: what we built, why, which files, the Laravel concepts, and my own no
 
 **Vehicles module finished:** 127 tests passing.
 
+---
+
+## Module 3 — Customers
+
+### Decisions (2026-10-21)
+**Customer vs driver:** the *customer* signs and pays; the *driver* drives (always a person with ID + licence). For an individual they're the same person. Companies (corporate leasing) come **later**: company = payer, drivers = individuals linked to it. A `type` column (`individual`) is ready for it.
+**Blocklist:** yes — the owner blocks a customer with a reason (unpaid damage, very late return...). Blocked customers can't start a new rental.
+
+### Small refactor: one trait for "numbers per agency"
+Cars (V-001) and customers (C-001) both need "next number of this agency" → moved into `app/Models/Concerns/NumberedPerAgency.php`. Rentals (R-...) will reuse it. Lesson: when the same logic is needed a second time, extract it; the 71 vehicle tests proved the refactor broke nothing.
+
+### Step 1: Customers (2026-10-21)
+**What:**
+- `GET /api/customers?search=&blocked=1&archived=1` — sorted by name; search by name (any order), phone, ID number or code (C-012).
+- `POST /api/customers`, `GET /api/customers/{id}`, `PUT /api/customers/{id}`.
+- `POST|DELETE /api/customers/{id}/block` (with reason) and `POST|DELETE /api/customers/{id}/archive` — owner only.
+**Rules:**
+- Same ID number twice in an agency → refused, with a helpful message: "already belongs to customer C-001 (Amine Kettani)". Compared on `id_key` (letters + digits): `xx 100 001` = `XX100001`.
+- Phone stored as `+212600000001`; searching `0600 000 001`, `+212 600...` or `00212 600...` finds it (leading zeros ignored).
+- Licence number and licence date go together, and the licence date is after the birth date. Both optional (someone may pay but not drive).
+- **Privacy:** ID and licence numbers appear as "(hidden)" in the activity log — tested, the real number never appears.
+- No delete: archived (same rule as cars).
+**Files:** `database/migrations/..._create_customers_table.php`, `app/Models/Customer.php`, `app/Enums/IdType.php`, `CustomerType.php`, `app/Models/Concerns/NumberedPerAgency.php`, `app/Policies/CustomerPolicy.php`, `app/Http/Requests/CustomerRequest.php`, `app/Http/Resources/CustomerResource.php`, `app/Http/Controllers/Api/CustomerController.php`, `CustomerBlockController.php`, `CustomerArchiveController.php`, `database/factories/CustomerFactory.php`, `database/seeders/CustomerSeeder.php` (the prototype's 12 invented customers; C-009 blocked), `tests/Feature/Customers/CustomerApiTest.php`, `CustomerBlockArchiveTest.php`
+**Laravel concepts:**
+- **Mutator with two columns** = setting `id_number` also fills `id_key` (same trick as plate / plate_key).
+- **`required_with`** = "if one of these fields is filled, the other is required too".
+- **Masked fields** (`$activityMasked`) = privacy by design: sensitive values never reach the log.
+**Lessons:**
+- A test found that staff typing a local number (`0611...`) couldn't find a customer stored as `+212 611...` → search now ignores leading zeros.
+- MySQL reorders the keys inside JSON → compare JSON arrays without caring about key order (`assertEquals`, not `assertSame`).
+**My notes:**
+
+### Step 2: Driver check (2026-10-21)
+**What:** `GET /api/customers/{id}/driver-check?on=2026-11-15` → "can this person drive on the pickup date?"
+```
+{ "eligible": false, "on": "2026-11-14",
+  "checks": [ { "key": "age", "ok": false, "value": 20, "minimum": 21, "message": "20 years old (minimum 21)" },
+              { "key": "licence", "ok": true, ... "message": "Licence held for 3 years (minimum 2)" } ] }
+```
+**Rules:**
+- Age ≥ 21 and licence held ≥ 2 years **on the pickup date** (not today) — values from the agency settings.
+- Full years like birthdays: you turn 21 *on* your birthday. Born on 29 February → in a normal year you have your birthday on 1 March (same as the Vue prototype).
+- No licence recorded, blocked or archived → cannot drive, with the reason shown to staff.
+- No date given → today in the agency's timezone (at 00:30 in Casablanca it's already the next day there).
+**Files:** `app/Support/DriverCheck.php`, `app/Http/Controllers/Api/DriverCheckController.php`, `routes/api.php`, `tests/Feature/Customers/DriverCheckTest.php`
+**Laravel concepts:**
+- **A support class with no database** (`DriverCheck`) = pure business logic, easy to test with many dates (data provider).
+- **`date_format:Y-m-d`** = only accept dates written exactly like `2026-11-15` (refuses `15/11/2026`, which is ambiguous).
+- **Returning plain JSON** (`response()->json`) when the answer isn't a model.
+**Lesson:** the backend uses exactly the same year-counting rule as the Vue prototype, so the form and the server can never disagree.
+**My notes:**
+
+**Customers module finished (individuals):** 164 tests passing.
+

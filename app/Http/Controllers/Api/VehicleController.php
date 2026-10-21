@@ -98,8 +98,8 @@ class VehicleController extends Controller
                 $query->orWhere('plate_key', 'like', '%'.$plateKey.'%');
             }
 
-            if (preg_match('/^(?:V-?)?0*(\d+)$/i', trim($search), $matches)) {
-                $query->orWhere('fleet_number', (int) $matches[1]);
+            if ($number = Vehicle::numberFromCode($search, 'V-')) {
+                $query->orWhere('fleet_number', $number);
             }
         });
     }
