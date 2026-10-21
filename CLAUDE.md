@@ -14,6 +14,16 @@ Back office for a car-rental agency (first customer: a friend's agency in Morocc
 - Every tenant table has `agency_id` from day one (SaaS later). Agency facts (currency, rules, grace minutes, fuel price…) come from agency settings, not hardcoded values.
 - Money in MAD, stored as `decimal(10,2)` everywhere (no centimes, no dividing by 100). Amounts the user types (prices, deposits, charges) are whole dirhams only — validated in the Vue form AND in Laravel (Form Request). Calculated amounts (VAT, splits, discounts) may keep cents, rounded to 2 decimals by one shared helper.
 - Every business rule has a feature/unit test (`php artisan test`).
+
+## API conventions (Foundation)
+
+- Auth: Sanctum SPA cookie session. Vue calls `GET /sanctum/csrf-cookie`, then `POST /api/login`; `GET /api/me` returns the user + agency + agency rules; `POST /api/logout`. All back-office routes go in the `auth:sanctum` group in `routes/api.php`. Production domain must be in `SANCTUM_STATEFUL_DOMAINS`.
+- Tenancy: every tenant model uses `App\Models\Concerns\BelongsToAgency` (auto `agency_id` + agency filter for the logged-in user). Code running with nobody logged in (seeders, commands, scheduled tasks, jobs) is NOT filtered and must filter by agency itself. Migration: `$table->foreignId('agency_id')->constrained()->cascadeOnDelete();`
+- Roles: `App\Enums\Role` (owner, staff). `role` and `agency_id` are never mass-assignable.
+- Input: one Form Request per write action. Typed money uses `new App\Rules\WholeDirhams`; calculated money goes through `App\Support\Money::round()`.
+- Output: always an API Resource → `{ "data": ... }`; lists are paginated → `{ data, links, meta }`. Never return models directly.
+- Errors (Laravel defaults + one override): 401 `Unauthenticated.`, 403 forbidden, 404 always `{ "message": "Not found." }` (no model/route names), 419 CSRF expired, 422 `{ message, errors: { field: [..] } }`, 429 too many attempts.
+- Dates: stored in UTC, sent as ISO 8601; business rules (day counting, late) are computed in the agency's timezone (`agencies.timezone`, default Africa/Casablanca).
 - Build module by module: Foundation → Vehicles → Customers → Rentals → Invoices → Maintenance → Settings → Booking requests → Super admin (SaaS) → Subscriptions & payments.
 - Super admin (SaaS, after the first client is live): separate `admins` table and its own login — never a role on `users`, so it stays outside the agency guard (`BelongsToAgency`). Manages agencies (create agency + owner, suspend/activate, plan & subscription status) and sees usage numbers (cars, rentals, staff, last login), not agencies' customer personal data (Moroccan law 09-08). Optional "view as agency" support access must be logged.
 
@@ -36,6 +46,7 @@ Back office for a car-rental agency (first customer: a friend's agency in Morocc
 
 - Never commit unless the user asks; the user commits and pushes themselves.
 - The user is a junior developer (MERN background): explain Laravel concepts briefly when introducing them.
+- After every finished step (or decision), add an entry to `docs/learning-journal.md` in the same format (What / Why / Files / Laravel concepts / Lesson / empty "My notes:" line for the user). Never edit the user's own "My notes" text.
 
 <laravel-boost-guidelines>
 === foundation rules ===
