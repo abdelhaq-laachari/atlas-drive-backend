@@ -1,0 +1,42 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('agencies', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('phone')->nullable();
+            $table->string('email')->nullable();
+            $table->string('address')->nullable();
+            $table->string('city')->nullable();
+            $table->char('currency', 3)->default('MAD');
+            $table->string('timezone')->default('Africa/Casablanca');
+
+            // Business rules each agency can change in Settings.
+            $table->unsignedSmallInteger('late_grace_minutes')->default(60);
+            $table->decimal('fuel_price_per_quarter', 10, 2)->default(150);
+            $table->unsignedTinyInteger('driver_min_age')->default(21);
+            $table->unsignedTinyInteger('licence_min_years')->default(2);
+            $table->unsignedSmallInteger('document_expiring_soon_days')->default(30);
+
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('agencies');
+    }
+};
