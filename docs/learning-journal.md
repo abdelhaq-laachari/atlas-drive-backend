@@ -100,4 +100,146 @@ Each entry: what we built, why, which files, the Laravel concepts, and my own no
 ---
 
 ## Module 2 — Vehicles
-_(next)_
+
+**Plan:** Step 1 cars (table, pricing, list/details/add/edit API, plate & VIN rules, manual status) → Step 2 documents (insurance, inspection, vignette, registration; Valid / Expiring soon / Expired / Missing; history) → Step 3 damage record on the car (open / repaired).
+
+### Decisions (2026-10-21)
+**Extra-km fee may have cents** (1.50 MAD/km): it's a *rate per km*, not an amount someone pays directly. Every other typed amount stays whole dirhams. The final charge (e.g. 120 km × 1.50) is rounded with `Money::round()`.
+**Archive, never delete:** a sold or retired car is *archived* (date + reason). It disappears from lists and can't be rented, but old rentals and invoices still show the right car. Only a car with no history can be fully deleted.
+**Why:** deleting a car would break history — an invoice from last year must still say which car was rented.
+**My notes:**
+
+### Step 1: Cars (2026-10-21)
+**What:** the `vehicles` table and API.
+- `GET /api/vehicles` — list (25 per page), filters `?status=` `?category=` `?search=` (fleet code, plate, make, model), `?archived=1` for archived cars.
+- `GET /api/vehicles/{id}`, `POST /api/vehicles` (add), `PUT /api/vehicles/{id}` (edit).
+- `PATCH /api/vehicles/{id}/status` — Available / Maintenance / Out of service (Rented and Reserved come from rentals).
+- `POST /api/vehicles/{id}/archive` (with a reason) and `DELETE /api/vehicles/{id}/archive` (restore). No real delete.
+**Who can do what:** owner adds, edits, archives cars (prices!). Staff see the fleet and change the status (e.g. send a car to maintenance).
+**Rules:**
+- Fleet code V-001, V-002… automatic, numbered per agency, never reused (archived cars keep theirs).
+- Plate unique per agency: `30577 b 6` = `30577-B-6`. Stored twice: `plate` (display) and `plate_key` (`30577B6`, for comparing). Works with Arabic letters.
+- VIN: 17 letters/digits, no I, O, Q (optional).
+- Prices, deposit: whole dirhams. Extra-km fee: up to 2 decimals.
+- `status` and `agency_id` can't be sent in the form.
+**Files:**
+- `database/migrations/..._create_vehicles_table.php`, `app/Models/Vehicle.php`, `app/Enums/VehicleStatus.php`, `VehicleCategory.php`, `FuelType.php`, `Transmission.php`
+- `app/Policies/VehiclePolicy.php`, `app/Http/Requests/VehicleRequest.php`, `app/Http/Resources/VehicleResource.php`
+- `app/Http/Controllers/Api/VehicleController.php`, `VehicleStatusController.php`, `VehicleArchiveController.php`, `routes/api.php`
+- `database/factories/VehicleFactory.php`, `database/seeders/VehicleSeeder.php` (10 sample cars from the prototype)
+- `tests/Feature/Vehicles/VehicleApiTest.php`, `VehicleStatusTest.php`, `VehicleArchiveTest.php`
+**Laravel concepts:**
+- **Policy** = a class that answers "is this user allowed to do this?" (`create`, `update`, `archive`...). Wrong role → 403.
+- **Route model binding** = `{vehicle}` in the URL becomes a `Vehicle` object automatically; with the agency guard, another agency's car → 404.
+- **`apiResource`** = one line that creates the standard routes (index, show, store, update).
+- **Accessor / mutator** (`Attribute`) = computed value when reading (`fleet_code` from `fleet_number`) or extra work when writing (setting `plate` also sets `plate_key`).
+- **Local scope** = a reusable query piece: `Vehicle::inFleet()`, `Vehicle::archived()`.
+- **`after()` in a Form Request** = extra validation that needs the database (is the plate taken?).
+- **Pagination** = the list comes as `{ data, links, meta }` with page numbers and totals.
+- **409 Conflict** = the request is fine, but not allowed in the car's current state (e.g. editing an archived car).
+**Lessons:**
+- Laravel's default seeder had `WithoutModelEvents`, which switched off our automatic fleet number → the seeder crashed. Removed it.
+- A test caught that `30577 b 6` and `30577-B-6` were treated as different plates → added `plate_key`.
+**Commands:** `php artisan migrate:fresh --seed` → 10 sample cars in phpMyAdmin (`vehicles` table).
+**My notes:**
+
+---
+
+## Decisions — Accounts & security (2026-10-21)
+**Who creates whom:** me (super admin) → agency + owner; owner → staff; staff → nobody. No "Sign up" page, only login.
+**First password:** temporary password + forced change at first login (option A). Later: invitation link by email (option B).
+**Everyone can change their password** at any time (must type the old one first).
+**Three extra rules:**
+1. Staff who leave are **deactivated, not deleted** (history stays correct — same idea as archiving cars).
+2. Owner can reset a staff password; I can reset an owner's.
+3. An owner can't remove themselves or the last owner (agency never locked out).
+**Two-step verification:** authenticator app (Google Authenticator). Free: the phone and the server share a secret (QR code) and both calculate the same 6-digit code from the time — no internet call, no paid API. Laravel Fortify (official) supports it + recovery codes. SMS = paid, avoided.
+**Not the same thing:** "Google Authenticator" (6-digit code after password) ≠ "Sign in with Google" (log in with a Google account).
+**Open question for my friend:** fixed roles or per-staff permissions → `docs/client-questions.md`.
+**My notes:**
+
+---
+
+## Module 1 — Foundation (continued)
+
+### Step 5: Activity log — "footprints" (2026-10-21)
+**What:** every action on a car is recorded: who, what, which car, before → after, when. The owner reads it with `GET /api/activity` (filters: `?user_id=`, `?subject_type=vehicle&subject_id=`, `?action=`, `?from=2026-10-01&to=2026-10-31`).
+**Example:** `Youssef — updated — V-003 Dacia Logan — daily price 270.00 → 250.00 — today 15:30`
+**Rules:**
+- Nobody can edit or delete a footprint (not even the owner) → otherwise it can't be trusted.
+- Only the owner reads it; each agency sees only its own.
+- Done with nobody logged in (seeders, scheduled tasks) → user is empty = "System".
+- Sensitive values (CIN, passport) will be logged as "(hidden)".
+**Super admin & privacy (law 09-08):** I *can* technically see everything, but only look for support, security or legal reasons, and my access is logged too. Staff must know their actions are recorded. Write it in the contract.
+**Files:** `database/migrations/..._create_activity_logs_table.php`, `app/Models/ActivityLog.php`, `app/Models/Concerns/LogsActivity.php`, `app/Policies/ActivityLogPolicy.php`, `app/Http/Controllers/Api/ActivityLogController.php`, `app/Http/Resources/ActivityLogResource.php`, `app/Providers/AppServiceProvider.php` (morph map), `app/Models/Vehicle.php`, `tests/Feature/ActivityLogTest.php`
+**Laravel concepts:**
+- **Model events** `created` / `updated` = run code automatically after saving (here: write the footprint).
+- **Polymorphic relation** (`morphTo`) = one log table can point to different things (a car, later a customer, a rental) with `subject_type` + `subject_id`.
+- **Morph map** = store the short name `vehicle` instead of the PHP class name `App\Models\Vehicle`.
+- **Invokable controller** = a controller with only one action (`__invoke`).
+- **`travelTo()`** in tests = pretend it's another date/time.
+**Lessons:**
+- I named the column `changes`, but every Eloquent model already has an internal `$changes` property → the data was silently never saved. A test caught it → renamed to `diff`. Lesson: avoid names Laravel already uses.
+- The same price was logged as `270` or `"270.00"` → now every value is formatted like the API.
+- Date filters use the agency's day (Casablanca), not UTC — otherwise an action at 23:30 would show up on the wrong day.
+**My notes:**
+
+### Decision — Super admin access, the safe way (2026-10-21)
+**Fear:** "if I see an agency's data by accident, am I in trouble?"
+**Design that protects me:**
+1. My super admin dashboard shows **only numbers** (cars, rentals, staff, last login). There is **no page** with an agency's customers or logs → seeing them by accident is impossible.
+2. If an agency needs help, **the owner clicks "Allow support access"** (e.g. 24 hours). Only then can I open their data.
+3. The owner sees "Atlas Drive support accessed your account on 12/03 at 14:00". Access closes automatically.
+**Why the access log is good for me:** like a visitor book — it *proves* I came for a good reason (support ticket), it's not a trap.
+**What the law punishes:** misuse — selling, sharing, using data for my own purpose, careless leaks. Not a provider fixing a bug with permission.
+**To do before selling:** one meeting with a Moroccan lawyer (contract, CNDP) → in `docs/client-questions.md`.
+**My notes:**
+
+---
+
+## Module 2 — Vehicles (continued)
+
+### Step 2: Documents (2026-10-21)
+**What:** insurance, technical inspection, vignette and registration card for each car, with status **Valid / Expiring soon / Expired / Missing**.
+- `GET /api/vehicles/{id}/documents` — one row per type: status, days left, current document, history.
+- `POST /api/vehicles/{id}/documents` — add or renew (the newest start date becomes the current one, the old one stays as history).
+- `PUT /api/vehicle-documents/{id}` — correct. `DELETE /api/vehicle-documents/{id}` — owner only.
+- `GET /api/vehicle-documents?status=expired,missing,expiring&type=insurance` — "Documents & Deadlines" for the whole fleet, most urgent first (for the dashboard alerts).
+**Rules:**
+- Valid up to and including the expiry date; "expiring soon" = within the agency's setting (30 days).
+- "Today" = the agency's day (Casablanca), not the server's (UTC). At 00:30 in Casablanca it's already tomorrow there, but still yesterday in UTC.
+- Insurance / inspection / vignette need an expiry date after the start date; the registration card has none.
+- Cost in whole dirhams. No documents added to archived cars. Archived cars not in the fleet list.
+- Every document change leaves a footprint (activity log) — the trait from step 5 worked with one line.
+**Files:** `database/migrations/..._create_vehicle_documents_table.php`, `app/Models/VehicleDocument.php`, `app/Enums/DocumentType.php`, `DocumentStatus.php`, `app/Support/DocumentOverview.php`, `app/Policies/VehicleDocumentPolicy.php`, `app/Http/Requests/VehicleDocumentRequest.php`, `app/Http/Resources/VehicleDocumentResource.php`, `DocumentRowResource.php`, `app/Http/Controllers/Api/VehicleDocumentController.php`, `FleetDocumentController.php`, `database/factories/VehicleDocumentFactory.php`, `database/seeders/VehicleDocumentSeeder.php`, `tests/Feature/Vehicles/DocumentStatusTest.php`, `VehicleDocumentTest.php`
+**Laravel concepts:**
+- **hasMany / belongsTo** = a car has many documents; a document belongs to a car.
+- **Eager loading** (`with('documents')`) = load all cars' documents in one query instead of one query per car (avoids the "N+1" problem).
+- **Collections** (`groupBy`, `sortBy`, `filter`, `flatMap`) = like JavaScript array methods, on query results.
+- **Conditional validation** = the rules change with the type (`prohibited` for the registration card).
+- **A support class** (`DocumentOverview`) = business logic in one place, used by two controllers and tested alone.
+**Lesson:** a **flaky test** — it changed a random price to 250, but sometimes the random price was already 250, so nothing changed and the test failed. Fixed by setting the starting value. Rule: never rely on random values you then change.
+**Not built yet:** scanned files (PDF / photo of the document) → question for my friend.
+**My notes:**
+
+### Step 3: Damage record on the car (2026-10-21)
+**What:** the live damage record of each car — **open** damage (on the car now, shown on the drawing at the next hand-over) and **repaired** damage (history with date and workshop cost).
+- `GET /api/vehicles/{id}/damages?status=open` — oldest first, so the numbers on the drawing stay the same.
+- `POST /api/vehicles/{id}/damages` — record damage found outside a rental (e.g. noticed at the agency).
+- `PUT /api/vehicle-damages/{id}` — correct an open damage. `DELETE` — owner only (mistake).
+- `POST /api/vehicle-damages/{id}/repair` — mark repaired (date, cost, note). `DELETE .../repair` — owner only, reopen if marked repaired by mistake.
+- The car list now shows `open_damages_count` for each car.
+**Data of a damage mark:** `x`, `y` (position on the drawing from 0 to 1 → same on phone and desktop), `area` (car part from a fixed list of 25), `type` (scratch, dent, crack, broken, other), `size`, `note`, `found_at`, `found_stage` (hand-over / return / outside a rental).
+**Rules:** repair date between the day it was found and today (agency's day); repair cost in whole dirhams; a repaired damage can't be edited or repaired twice; no new damage on archived cars; every change leaves a footprint (`created`, `repaired`, `reopened`).
+**Left for the Rentals module:** link damage to the rental where it was found, create damage automatically at hand-over / return, and the **customer charge** (charge / reduce / waive). Later idea: compare charged amount vs repair cost (profit / loss on damage).
+**Files:** `database/migrations/..._create_vehicle_damages_table.php`, `app/Models/VehicleDamage.php`, `app/Enums/DamageType.php`, `DamageSize.php`, `DamageStatus.php`, `DamageStage.php`, `app/Support/CarParts.php`, `app/Policies/VehicleDamagePolicy.php`, `app/Http/Requests/VehicleDamageRequest.php`, `RepairDamageRequest.php`, `app/Http/Resources/VehicleDamageResource.php`, `app/Http/Controllers/Api/VehicleDamageController.php`, `VehicleDamageRepairController.php`, `database/factories/VehicleDamageFactory.php`, `database/seeders/VehicleDamageSeeder.php`, `tests/Feature/Vehicles/VehicleDamageTest.php`
+**Laravel concepts:**
+- **`withCount`** = count related rows in the same query (`open_damages_count` for every car) without loading them.
+- **`whenHas`** in a Resource = only include a field when it was loaded.
+- **`forceFill`** = set fields that are not fillable (status, repair info) on purpose, from trusted code — never with raw user input.
+- **Dynamic validation rules** = the repair date limits come from the damage itself and the agency's timezone.
+**Lesson:** tests passed first try, and a real-server check (login → cars → documents → damage) matched the prototype's sample data.
+**My notes:**
+
+**Vehicles module finished:** 127 tests passing.
+

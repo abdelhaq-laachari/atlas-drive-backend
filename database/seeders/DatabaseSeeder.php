@@ -4,13 +4,10 @@ namespace Database\Seeders;
 
 use App\Models\Agency;
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
      * Seed the application's database (local development only).
      */
@@ -31,5 +28,9 @@ class DatabaseSeeder extends Seeder
             'name' => 'Front Desk',
             'email' => 'staff@atlasdrive.test',
         ]);
+
+        $this->call(VehicleSeeder::class, parameters: ['agency' => $agency]);
+        $this->call(VehicleDocumentSeeder::class, parameters: ['agency' => $agency]);
+        $this->call(VehicleDamageSeeder::class, parameters: ['agency' => $agency]);
     }
 }
