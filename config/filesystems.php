@@ -33,7 +33,8 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Off: private files are only sent by AttachmentFileController (login + agency checks).
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

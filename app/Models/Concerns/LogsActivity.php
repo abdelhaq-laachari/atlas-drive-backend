@@ -8,7 +8,7 @@ use DateTimeInterface;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Add to a tenant model to record footprints automatically (created / updated...).
+ * Add to a tenant model to record footprints automatically (created / updated / deleted...).
  *
  * The model may define:
  * - activityLabel(): string  — readable name frozen in the log, e.g. "V-011 Dacia Logan"
@@ -33,6 +33,14 @@ trait LogsActivity
             if ($changes) {
                 $model->logActivity($model->activityAction($changes), $changes);
             }
+        });
+
+        // What was removed stays readable in the log (sensitive fields still masked).
+        static::deleted(function (self $model) {
+            $model->logActivity('deleted', $model->activityChanges(
+                $model->getAttributes(),
+                array_map(fn () => null, $model->getAttributes()),
+            ));
         });
     }
 
@@ -107,7 +115,13 @@ trait LogsActivity
             return null;
         }
 
-        $value = $this->hasCast($field) ? $this->castAttribute($field, $raw) : $raw;
+        $value = match (true) {
+            // Custom casts (e.g. UtcDateTime): ask the cast directly, because Eloquent would return
+            // the current cached value for both old and new.
+            ! $this->isEnumCastable($field) && $this->isClassCastable($field) => $this->resolveCasterClass($field)->get($this, $field, $raw, $this->attributes),
+            $this->hasCast($field) => $this->castAttribute($field, $raw),
+            default => $raw,
+        };
 
         return match (true) {
             $value instanceof BackedEnum => $value->value,

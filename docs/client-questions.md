@@ -41,6 +41,9 @@ then tell Claude so the code and CLAUDE.md are updated.
 19. Do you rent to **companies** today? If yes, how many and how do you bill them (monthly invoice, several cars)?
 20. **Foreign customers:** do you accept a foreign driving licence as is, or do you require an international
     driving permit? Any different age / licence rule for them?
+21. **Files:** which documents do you want to keep in the system (CIN / passport / licence copies, signed contract,
+    deposit cheque photo, car papers)? **How long** should we keep ID copies after a customer's last rental
+    (e.g. 2 years, then deleted automatically)?
 
 ## Agency details (for contracts and invoices)
 14. Real agency name, address, phone, email, logo, legal numbers (ICE, RC, IF, patente).

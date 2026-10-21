@@ -133,8 +133,10 @@ class DriverCheckTest extends TestCase
 
     public function test_without_a_date_today_in_the_agency_timezone_is_used(): void
     {
-        // 00:30 on Nov 15 in Casablanca = still Nov 14 in UTC
-        $this->travelTo(now()->parse('2026-11-15 00:30:00', 'Africa/Casablanca'));
+        // An agency in a timezone ahead of UTC (Africa/Lagos = UTC+1 all year):
+        // 00:30 on Nov 15 there is still Nov 14 in UTC.
+        $this->staff->agency->update(['timezone' => 'Africa/Lagos']);
+        $this->travelTo(now()->parse('2026-11-15 00:30:00', 'Africa/Lagos'));
         $customer = $this->customer('2005-11-15', '2023-01-10'); // turns 21 on Nov 15
 
         $this->actingAs($this->staff)

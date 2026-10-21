@@ -1,12 +1,18 @@
 <?php
 
 use App\Http\Controllers\Api\ActivityLogController;
+use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CustomerArchiveController;
 use App\Http\Controllers\Api\CustomerBlockController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DriverCheckController;
 use App\Http\Controllers\Api\FleetDocumentController;
+use App\Http\Controllers\Api\RentalCancelController;
+use App\Http\Controllers\Api\RentalController;
+use App\Http\Controllers\Api\RentalExtensionController;
+use App\Http\Controllers\Api\RentalHandoverController;
+use App\Http\Controllers\Api\RentalPaymentController;
 use App\Http\Controllers\Api\VehicleArchiveController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VehicleDamageController;
@@ -24,6 +30,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Footprints (owner only)
     Route::get('/activity', ActivityLogController::class);
+
+    // Files (encrypted, private): customers, rentals, cars, car documents, damage
+    Route::get('/attachments', [AttachmentController::class, 'index']);
+    Route::post('/attachments', [AttachmentController::class, 'store']);
+    Route::get('/attachments/{attachment}/file', [AttachmentController::class, 'file']);
+    Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy']);
 
     // Vehicles (no delete: cars are archived, see CLAUDE.md)
     Route::apiResource('vehicles', VehicleController::class)->except('destroy');
@@ -53,4 +65,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/customers/{customer}/archive', [CustomerArchiveController::class, 'store']);
     Route::delete('/customers/{customer}/archive', [CustomerArchiveController::class, 'destroy']);
     Route::get('/customers/{customer}/driver-check', DriverCheckController::class);
+
+    // Rentals
+    Route::post('/rentals/quote', [RentalController::class, 'quote']);
+    Route::get('/rentals', [RentalController::class, 'index']);
+    Route::post('/rentals', [RentalController::class, 'store']);
+    Route::get('/rentals/{rental}', [RentalController::class, 'show']);
+    Route::post('/rentals/{rental}/cancel', RentalCancelController::class);
+    Route::post('/rentals/{rental}/extend', RentalExtensionController::class);
+    Route::post('/rentals/{rental}/payments', [RentalPaymentController::class, 'store']);
+    Route::get('/rentals/{rental}/handover', [RentalHandoverController::class, 'show']);
+    Route::post('/rentals/{rental}/handover', [RentalHandoverController::class, 'store']);
 });

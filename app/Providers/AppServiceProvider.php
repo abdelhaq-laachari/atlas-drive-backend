@@ -2,7 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\Attachment;
 use App\Models\Customer;
+use App\Models\Rental;
+use App\Models\RentalCharge;
+use App\Models\RentalPayment;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleDamage;
@@ -30,7 +34,11 @@ class AppServiceProvider extends ServiceProvider
     {
         // Short names stored in the database instead of PHP class names (activity_logs.subject_type).
         Relation::enforceMorphMap([
+            'attachment' => Attachment::class,
             'customer' => Customer::class,
+            'rental' => Rental::class,
+            'rental_charge' => RentalCharge::class,
+            'rental_payment' => RentalPayment::class,
             'user' => User::class,
             'vehicle' => Vehicle::class,
             'vehicle_document' => VehicleDocument::class,

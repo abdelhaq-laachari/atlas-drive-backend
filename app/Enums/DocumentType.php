@@ -12,6 +12,24 @@ enum DocumentType: string
     case Vignette = 'vignette'; // annual road tax
     case Registration = 'registration'; // registration card (carte grise), no expiry
 
+    public function label(): string
+    {
+        return match ($this) {
+            self::Insurance => 'Insurance',
+            self::Inspection => 'Technical inspection',
+            self::Vignette => 'Road tax (vignette)',
+            self::Registration => 'Registration card',
+        };
+    }
+
+    /**
+     * Driving without these is illegal: an expired one blocks the hand-over.
+     */
+    public function isRequiredToDrive(): bool
+    {
+        return in_array($this, [self::Insurance, self::Inspection], true);
+    }
+
     public function hasExpiry(): bool
     {
         return $this !== self::Registration;

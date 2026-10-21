@@ -9,6 +9,7 @@ namespace App\Models\Concerns;
  * The model defines:
  * - numberColumn(): string  e.g. 'fleet_number'
  * - numberPrefix(): string  e.g. 'V-'
+ * - numberPad(): int        optional, digits shown (default 3: V-007; rentals use 4: R-0007)
  * The table needs: $table->unsignedInteger('<column>'); $table->unique(['agency_id', '<column>']);
  */
 trait NumberedPerAgency
@@ -30,7 +31,9 @@ trait NumberedPerAgency
      */
     public function code(): string
     {
-        return $this->numberPrefix().str_pad((string) $this->{$this->numberColumn()}, 3, '0', STR_PAD_LEFT);
+        $pad = method_exists($this, 'numberPad') ? $this->numberPad() : 3;
+
+        return $this->numberPrefix().str_pad((string) $this->{$this->numberColumn()}, $pad, '0', STR_PAD_LEFT);
     }
 
     /**

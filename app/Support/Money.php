@@ -15,4 +15,28 @@ class Money
     {
         return number_format(round((float) $amount, 2), 2, '.', '');
     }
+
+    /**
+     * Whole centimes, to compare or add amounts exactly: "270.50" → 27050.
+     */
+    public static function cents(int|float|string $amount): int
+    {
+        return (int) round((float) $amount * 100);
+    }
+
+    /**
+     * Add amounts exactly and return the database format: ["270.00", 135.5] → "405.50".
+     *
+     * @param  iterable<int|float|string>  $amounts
+     */
+    public static function sum(iterable $amounts): string
+    {
+        $cents = 0;
+
+        foreach ($amounts as $amount) {
+            $cents += self::cents($amount);
+        }
+
+        return number_format($cents / 100, 2, '.', '');
+    }
 }

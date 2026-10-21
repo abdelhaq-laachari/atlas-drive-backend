@@ -74,6 +74,15 @@ class VehicleDamageTest extends TestCase
             ->assertJsonValidationErrors(['x', 'y', 'area', 'type', 'size']);
     }
 
+    public function test_a_found_time_with_an_offset_is_saved_in_utc(): void
+    {
+        $this->actingAs($this->staff)
+            ->postJson("/api/vehicles/{$this->car->id}/damages", $this->damageForm(['found_at' => '2026-10-20T10:00:00+01:00']))
+            ->assertCreated();
+
+        $this->assertSame('2026-10-20 09:00:00', VehicleDamage::sole()->getRawOriginal('found_at'));
+    }
+
     public function test_damage_cannot_be_found_in_the_future(): void
     {
         $this->actingAs($this->staff)

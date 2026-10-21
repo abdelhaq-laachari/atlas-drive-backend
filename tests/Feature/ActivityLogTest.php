@@ -174,14 +174,16 @@ class ActivityLogTest extends TestCase
 
     public function test_footprints_can_be_filtered_by_day_in_the_agency_timezone(): void
     {
-        // 23:30 in Casablanca (UTC+1) on Oct 20 = 22:30 UTC on Oct 20
-        $this->travelTo(now()->parse('2026-10-20 22:30:00', 'UTC'));
+        // An agency in a timezone ahead of UTC (Africa/Lagos = UTC+1 all year):
+        // 23:30 UTC on Oct 20 is already 00:30 on Oct 21 there.
+        $this->owner->agency->update(['timezone' => 'Africa/Lagos']);
+        $this->travelTo(now()->parse('2026-10-20 23:30:00', 'UTC'));
         $this->car();
         $this->travelBack();
 
         $this->actingAs($this->owner);
 
-        $this->getJson('/api/activity?from=2026-10-20&to=2026-10-20')->assertJsonCount(1, 'data');
-        $this->getJson('/api/activity?from=2026-10-21&to=2026-10-21')->assertJsonCount(0, 'data');
+        $this->getJson('/api/activity?from=2026-10-21&to=2026-10-21')->assertJsonCount(1, 'data');
+        $this->getJson('/api/activity?from=2026-10-20&to=2026-10-20')->assertJsonCount(0, 'data');
     }
 }

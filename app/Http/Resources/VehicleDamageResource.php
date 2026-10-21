@@ -29,6 +29,7 @@ class VehicleDamageResource extends JsonResource
             'note' => $this->note,
             'found_at' => $this->found_at,
             'found_stage' => $this->found_stage,
+            'rental_id' => $this->rental_id,
             'status' => $this->status,
             'repaired_at' => $this->repaired_at?->toDateString(),
             'repair_cost' => $this->repair_cost,

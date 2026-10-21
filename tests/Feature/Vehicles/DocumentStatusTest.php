@@ -22,7 +22,7 @@ class DocumentStatusTest extends TestCase
     {
         parent::setUp();
 
-        // Midday in Casablanca, so "today" is the same date in UTC and in the agency.
+        // Midday, so "today" is the same date in UTC and in the agency.
         $this->travelTo(now()->parse('2026-10-21 12:00:00', 'Africa/Casablanca'));
         $this->agency = Agency::factory()->create(); // "expiring soon" = 30 days
     }
@@ -75,8 +75,10 @@ class DocumentStatusTest extends TestCase
 
     public function test_today_is_the_agency_day_not_the_server_day(): void
     {
-        // 00:30 in Casablanca on Oct 22 is still Oct 21 in UTC.
-        $this->travelTo(now()->parse('2026-10-22 00:30:00', 'Africa/Casablanca'));
+        // An agency in a timezone ahead of UTC (Africa/Lagos = UTC+1 all year):
+        // 00:30 on Oct 22 there is still Oct 21 in UTC.
+        $this->agency->timezone = 'Africa/Lagos';
+        $this->travelTo(now()->parse('2026-10-22 00:30:00', 'Africa/Lagos'));
 
         $status = (new DocumentOverview($this->agency))->status($this->documentExpiringOn('2026-10-21'));
 

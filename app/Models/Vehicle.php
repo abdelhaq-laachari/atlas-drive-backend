@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\FuelType;
+use App\Enums\RentalStatus;
 use App\Enums\Transmission;
 use App\Enums\VehicleCategory;
 use App\Enums\VehicleStatus;
@@ -157,6 +158,35 @@ class Vehicle extends Model
     public function damages(): HasMany
     {
         return $this->hasMany(VehicleDamage::class);
+    }
+
+    /**
+     * @return HasMany<Rental, $this>
+     */
+    public function rentals(): HasMany
+    {
+        return $this->hasMany(Rental::class);
+    }
+
+    /**
+     * After a rental changes: Rented if a rental has the car out, Reserved if one is waiting,
+     * otherwise Available. A car in maintenance / out of service is left alone.
+     */
+    public function syncStatusWithRentals(): void
+    {
+        if (! in_array($this->status, [VehicleStatus::Available, VehicleStatus::Reserved, VehicleStatus::Rented], true)) {
+            return;
+        }
+
+        $statuses = $this->rentals()->whereIn('status', RentalStatus::blocking())->pluck('status');
+
+        $this->status = match (true) {
+            $statuses->contains(RentalStatus::Active) => VehicleStatus::Rented,
+            $statuses->contains(RentalStatus::Reserved) => VehicleStatus::Reserved,
+            default => VehicleStatus::Available,
+        };
+
+        $this->save();
     }
 
     public function activityLabel(): string

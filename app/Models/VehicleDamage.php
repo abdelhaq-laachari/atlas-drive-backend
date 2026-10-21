@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\UtcDateTime;
 use App\Enums\DamageSize;
 use App\Enums\DamageStage;
 use App\Enums\DamageStatus;
@@ -47,7 +48,7 @@ class VehicleDamage extends Model
             'y' => 'float',
             'type' => DamageType::class,
             'size' => DamageSize::class,
-            'found_at' => 'datetime',
+            'found_at' => UtcDateTime::class,
             'found_stage' => DamageStage::class,
             'status' => DamageStatus::class,
             'repaired_at' => 'date',
@@ -61,6 +62,16 @@ class VehicleDamage extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    /**
+     * The rental during which it was found (null = outside a rental).
+     *
+     * @return BelongsTo<Rental, $this>
+     */
+    public function rental(): BelongsTo
+    {
+        return $this->belongsTo(Rental::class);
     }
 
     public function isOpen(): bool

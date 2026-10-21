@@ -297,3 +297,117 @@ Cars (V-001) and customers (C-001) both need "next number of this agency" → mo
 
 **Customers module finished (individuals):** 164 tests passing.
 
+---
+
+## Module 4 — Rentals
+
+**Plan:** 1 reservation → 2 before pickup (cancel, extend, payments) → 3 hand-over → 4 return (suggested charges, deposit) → 5 lists & dashboard (overdue, today, upcoming).
+
+### Decisions (2026-10-21)
+**Charge lines instead of one total:** each amount is a line with *suggested* vs *charged* and a decision (charge / reduce / waive + reason). Total = sum of lines. The owner always sees what was suggested, what was charged and why → fits "never force a charge, loyal customers get exceptions".
+**Payments are separate lines** (cash, card, cheque, transfer + reference, or taken from the deposit).
+**Deposit:** amount, method, reference, and a numbered receipt DEP-0001.
+**Expired documents:** warning at booking (there's time to renew), **blocked at hand-over** for insurance / inspection (driving without them is illegal). Vignette / registration: warning only.
+**Reduce / waive:** everyone can, but a reason is required and it's in the footprints.
+**My notes:**
+
+### Step 1: Reservation (2026-10-21)
+**What:**
+- `POST /api/rentals/quote` — preview without saving: days, suggested price, deposit, warnings, and problems (`can_book: false` + reasons). For the new-rental form.
+- `POST /api/rentals` — book: rental R-0001, status Reserved, rental charge line, deposit + receipt DEP-0001, optional payment. The car becomes Reserved (a car out on another rental keeps "Rented").
+- `GET /api/rentals`, `GET /api/rentals/{id}` — with car, customer, driver, charges, payments, total / paid / balance.
+- Times are sent as local agency time (`2026-11-10 10:00`) and returned with their offset; stored in UTC.
+**Checks (errors block, warnings don't):**
+- Errors: pickup in the past, return before pickup, car archived, car already booked for overlapping dates (back-to-back is fine), **overdue car blocked until it comes back**, customer blocked/archived, driver too young / licence too recent on the pickup date, another agency's car or customer → "Not found".
+- Warnings: car in maintenance / out of service; documents missing, expired, or expiring before the return.
+- Lower price → reason required (decision "reduce"); 0 → "waive". Deposit needs a method; cheque / card / transfer need a reference.
+**Two people booking the same car at the same second:** the booking runs in a **database transaction that locks the car row** and checks again → the second one gets "409: just booked by someone else".
+**Files:** `database/migrations/..._create_rentals_table.php`, `..._create_rental_charges_table.php`, `..._create_rental_payments_table.php`, `app/Models/Rental.php`, `RentalCharge.php`, `RentalPayment.php`, `app/Enums/RentalStatus.php`, `ChargeKind.php`, `ChargeDecision.php`, `PaymentMethod.php`, `app/Support/RentalDays.php`, `RentalBooking.php`, `Money.php` (cents, sum), `app/Casts/UtcDateTime.php`, `app/Policies/RentalPolicy.php`, `app/Http/Requests/StoreRentalRequest.php`, `QuoteRentalRequest.php`, `app/Http/Resources/RentalResource.php`, `app/Http/Controllers/Api/RentalController.php`, `database/factories/RentalFactory.php`, `tests/Feature/Rentals/RentalDaysTest.php`, `RentalBookingTest.php`
+**Laravel concepts:**
+- **DB transaction + `lockForUpdate()`** = "nobody else may touch this car row until I'm done" → no double booking.
+- **Request inheritance** = `QuoteRentalRequest extends StoreRentalRequest`: same checks, different answer.
+- **Custom cast** (`UtcDateTime`) = your own rule for reading/saving a column.
+- **`additional(['meta' => ...])`** on a Resource = send extra info (warnings) next to `data`.
+- **Money in centimes** (`Money::cents`, `Money::sum`) = add and compare amounts exactly, without the bcmath extension (a server might not have it).
+**Lessons:**
+- **Morocco's time:** PHP's timezone data (2026.3) says Morocco is **UTC+0 since 20 Sep 2026** with no more clock changes. My tests had "+01:00" written in them and failed. The app was fine because it never hardcodes an offset — it asks the timezone database. Lesson: store the timezone *name* (`Africa/Casablanca`), never "+1".
+- **A hidden one-hour bug:** Laravel saves a date's *clock reading* without converting its timezone (10:00 in Lagos saved as 10:00 UTC = 11:00 Lagos). It was invisible because Casablanca = UTC now. Found by testing with an agency in Lagos (UTC+1 all year) → fixed once for all with the `UtcDateTime` cast; the same bug existed in damage `found_at`.
+- A factory run while someone is logged in gets *their* agency (the agency guard) → create "other agency" data before logging in, in tests.
+**My notes:**
+
+### Note — Moroccan time (2026-10-21)
+Morocco is back to normal time (UTC+0); summer time (+1) might return, not sure.
+**What to do if it changes:** nothing in the code (we store the name `Africa/Casablanca`, PHP's timezone database knows the rules) → just **keep PHP updated on the server**.
+**Edge case:** a reservation made *before* an announcement, for a date *after* the change, would shift by 1 hour → fix with a one-time command for future reservations. Finished rentals are never affected.
+**My notes:**
+
+### Step 2: Cancel, extend, payments (2026-10-21)
+**What:**
+- `POST /api/rentals/{id}/cancel` `{ reason, fee? }` — reservations only. Price lines become **waived** (we still see what was suggested), optional **cancellation fee**, deposit marked as given back, the car becomes Available — or stays Reserved if another booking is waiting, and a car in maintenance stays in maintenance.
+- `POST /api/rentals/{id}/extend` `{ return_at, amount?, reason? }` — reservations or rentals in progress. Suggested = extra days × the rental's daily price (e.g. "Extension +2 days (until 15/11/2026 10:00)" = 540 MAD); less or free → reason required. Can't overlap the next booking (back-to-back OK); an overdue rental can be extended into the future.
+- `POST /api/rentals/{id}/payments` `{ amount, method, reference?, refund? }` — money in, up to what is due; **refunds** (negative amounts) up to what was paid. A cancelled rental only accepts refunds.
+**Shared helpers:** `Rental::addCharge()` (decision from suggested vs amount), `Vehicle::syncStatusWithRentals()` (Rented / Reserved / Available from the car's rentals), `Rental::loadDetails()`.
+**Files:** `app/Http/Controllers/Api/RentalCancelController.php`, `RentalExtensionController.php`, `RentalPaymentController.php`, `app/Models/Rental.php`, `Vehicle.php`, `app/Enums/ChargeKind.php` (cancellation), `app/Models/Concerns/LogsActivity.php`, rentals migration (deposit_kept, deposit_returned_at), `tests/Feature/Rentals/RentalChangesTest.php`
+**Laravel concepts:**
+- **`ValidationException::withMessages()`** = return a 422 with your own message from inside a controller (when the check needs calculations first).
+- **Negative amounts for refunds** = one payments table; `paid` = sum of all lines.
+**Lessons:**
+- The activity log didn't record the new return date: for **custom casts**, Eloquent returns the *current* value even when you ask for the old one → old = new → change skipped. Fixed by asking the cast directly. My first fix broke everything (enums are also "class casts" and can't be created with `new`) → 69/215 tests failing showed it at once → check enums first. Lesson: run the *whole* test suite after a change in shared code.
+**My notes:**
+
+### Decision — Files (attachments) (2026-10-21)
+**Real workflow:** online booking → the agency calls the client → the client sends CIN / licence on **WhatsApp** → the agent downloads them on the PC (WhatsApp Web) and uploads them. Walk-in clients: documents **scanned** on the PC. Then the contract is generated, signed, scanned and uploaded.
+**So now:** a normal upload from the PC. Car damage photos skipped for now (the car diagram replaces them).
+**Later — phone photos without Bluetooth:** a QR code on the PC hand-over page → the agent scans it with the phone camera (iPhone or Android) → a small temporary page "Photos for R-0012" → photos go **straight to the server** and appear on the PC. No AirDrop / Bluetooth / WhatsApp needed.
+**Security layers:** HTTPS + login, agency guard, file type checked by content, photos re-saved by the server (removes hidden code and the GPS location), private storage with random names, **files encrypted on disk**, footprints, automatic deletion of old ID copies (later), backups.
+**Space:** shrinking photos (3–5 MB → ~0.3 MB) → ~6–7 GB per year for the agency instead of ~60 GB. A Laravel-capable Hostinger shared plan is enough for one agency (check: SSH + Composer, PHP 8.4+ with GD, cron, backups); a VPS later for the SaaS.
+**My notes:**
+
+### Shared step: Attachments — files (2026-10-21)
+**What:**
+- `POST /api/attachments` (form with a file): `attachable_type` (customer, rental, vehicle, vehicle_document, vehicle_damage), `attachable_id`, `category`, `file`.
+- `GET /api/attachments?attachable_type=customer&attachable_id=5` — files of a record, newest first.
+- `GET /api/attachments/{id}/file` — opens the file (`?download=1` to download). `DELETE /api/attachments/{id}` — owner only.
+**Categories:** customer: CIN front/back, passport, licence front/back, international permit · rental: signed contract, deposit proof, payment proof, photo · car document: scan · damage: photo, repair invoice.
+**What happens to a file:**
+1. Logged in? Your agency's record? Category fits the record?
+2. Type checked **from the content** (JPG, PNG, WEBP, PDF), max 10 MB.
+3. Photos are **re-drawn as JPEG, max 1600 px** (4000×3000, 3 MB → 1600×1200, ~0.3 MB), phone rotation applied, EXIF/GPS removed. PDFs kept as they are (must start with `%PDF-`).
+4. **Encrypted** with the app key and saved under a random name: `agency-1/customer/9f3a…c2.jpg.enc`.
+5. Opening it decrypts it again, only for logged-in users of the same agency, with "don't cache" headers. Opening an ID document leaves a **"viewed"** footprint.
+**Also:** the activity log now records **deletions** too (before, deleting a document or damage left no trace).
+**⚠️ APP_KEY:** files are encrypted with `APP_KEY` from `.env` → lose or change it = all files unreadable forever. Written in `docs/deployment-checklist.md`.
+**Files:** `database/migrations/..._create_attachments_table.php`, `app/Models/Attachment.php`, `app/Enums/AttachmentCategory.php`, `app/Support/ImageShrinker.php`, `app/Policies/AttachmentPolicy.php`, `app/Http/Controllers/Api/AttachmentController.php`, `app/Http/Resources/AttachmentResource.php`, `app/Models/Concerns/LogsActivity.php` (deleted), `config/filesystems.php` (`serve` off), `docs/deployment-checklist.md`, `tests/Feature/AttachmentTest.php`
+**Laravel concepts:**
+- **Storage facade + disks** = one API for "local disk now, cloud storage later" (change the config, not the code).
+- **`Crypt::encryptString`** = encryption with the app key (AES-256).
+- **`multipart/form-data`** = how a form sends files (`-F file=@photo.jpg` with curl).
+- **`Storage::fake()`** in tests = a temporary disk, nothing real is written.
+- **`Rule::enum(...)->only([...])`** = only some values of an enum are allowed.
+**Lessons:**
+- **Defence in depth:** a PHP script renamed `photo.jpg` is stopped by the content check; and even if something passed it, the server can't re-draw it as an image → refused again. Two locks are better than one.
+- Laravel's *fake* uploaded files report their type from the **name**, real uploads from the **content** → to test the content check, the test uses a real file on disk.
+**My notes:**
+
+### Decision — JPEG, not WebP (2026-10-21)
+WebP is ~25–35% smaller than JPEG, but for us it saves only ~2 GB/year (the big saving was shrinking 3–5 MB photos to ~0.3 MB). Our files often **leave the app** (emailed to insurers / police, printed, opened on old PCs) where JPEG always works and WebP not always.
+**Decision:** keep **JPEG for documents** (ID, licence, contract, cheque). Use **WebP for car photos** later (QR phone upload: many photos, only viewed in the app). Switching is one line in `ImageShrinker` (+ JPEG fallback).
+**My notes:**
+
+### Step 3: Hand-over (2026-10-21)
+**What:**
+- `GET /api/rentals/{id}/handover` — **pre-check** for the hand-over page: can the car leave? problems and warnings, the car's current km, and its **open damage** (already drawn on the diagram).
+- `POST /api/rentals/{id}/handover` `{ at?, mileage, fuel (0–4 quarters), remarks?, new_damages?, payment? }` → rental **Active**, car **Rented**, car km updated.
+**Damage at hand-over:** the car's open damage is **copied onto the rental** (frozen — the contract keeps it even if the car is repaired later); new damage noticed now goes on the **car's record** (linked to this rental) and onto the rental's copy.
+**What blocks it:** not a reservation; car still out with another customer (e.g. overdue); car archived / in maintenance; **insurance or inspection expired or missing**; customer blocked since the booking; driver not allowed on the hand-over day; km lower than the car's km; hand-over time in the future. Vignette / registration problems and papers expiring before the return → warnings only.
+**Files:** `database/migrations/..._create_rental_damages_table.php`, `..._add_rental_id_to_vehicle_damages_table.php`, rentals migration (hand-over / return columns), `app/Models/RentalDamage.php`, `Rental.php`, `VehicleDamage.php`, `app/Support/RentalHandover.php`, `app/Http/Controllers/Api/RentalHandoverController.php`, `app/Http/Resources/RentalResource.php`, `app/Casts/UtcDateTime.php`, `tests/Feature/Rentals/RentalHandoverTest.php`
+**Laravel concepts:**
+- **Frozen copy vs live record** = `rental_damages` never changes; `vehicle_damages` follows the car (repaired...). Same idea as the frozen daily price on the rental.
+- **Validating arrays** (`new_damages.*.x`) = rules for every item of a list.
+- **Named arguments** (`known: true`) = readable calls in PHP 8.
+- **Immutable dates** (`CarbonImmutable`) = changing the timezone gives a *new* date, the original stays the same.
+**Lessons:**
+- A date object returned by our cast could be changed by mistake (`->setTimezone()` changed it for everyone reading the model afterwards) → the cast now returns immutable dates.
+- Again the testing trap: "another agency" data must be created while nobody is logged in.
+**My notes:**
+
