@@ -13,6 +13,8 @@ use App\Models\Concerns\NumberedPerAgency;
 use App\Support\Money;
 use Carbon\CarbonInterface;
 use Database\Factories\RentalFactory;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -153,6 +155,7 @@ class Rental extends Model
         $decision = ChargeDecision::for($suggested, $amount);
 
         $charge = new RentalCharge;
+        $charge->agency_id = $this->agency_id; // also works with nobody logged in (seeders, scheduled tasks)
         $charge->rental()->associate($this);
         $charge->kind = $kind;
         $charge->label = $label;
@@ -258,6 +261,16 @@ class Rental extends Model
     public function displayStatus(): string
     {
         return $this->isOverdue() ? 'overdue' : $this->status->value;
+    }
+
+    /**
+     * Active rentals past their return time plus the grace period (the car hasn't come back).
+     */
+    #[Scope]
+    protected function overdue(Builder $query, int $graceMinutes): void
+    {
+        $query->where('status', RentalStatus::Active)
+            ->where('return_at', '<', now()->subMinutes($graceMinutes));
     }
 
     // ---- Footprints ----

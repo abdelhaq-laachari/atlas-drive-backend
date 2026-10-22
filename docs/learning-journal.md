@@ -430,3 +430,19 @@ In Morocco agencies forgive loyal clients and negotiate. So at return the system
 **Lesson:** a test failed by 2 minutes ("3 h 17" instead of "3 h 15") because it didn't send a return time and "now" was used — the system was right, the test was imprecise.
 **My notes:**
 
+### Step 5: Lists & dashboard (2026-10-22)
+**What:**
+- `GET /api/rentals` with filters: `status` (reserved, active, **overdue**, completed, cancelled), `search` (R-0012, customer or driver name / phone, V-007, plate, make / model), `vehicle_id`, `customer_id` (as customer **or** driver), `from` / `to` (rentals overlapping those days).
+- `GET /api/rentals/overview` — the agency's day: **pickups today**, **returns today** (due today + already returned), **overdue**, **upcoming** (next 7 days), and counts. For the dashboard.
+- `RentalSeeder` — 8 sample rentals relative to today (2 pickups today, a return due tonight, one returned this morning, one overdue, upcoming, history, cancelled). Car statuses follow their rentals.
+**Overdue is never stored:** it's computed every time (active + return time + 60-min grace passed) with a **query scope** `Rental::overdue($grace)`, so it can never be "forgotten" in the database.
+**Files:** `app/Http/Controllers/Api/RentalController.php` (filters, search), `RentalOverviewController.php`, `app/Models/Rental.php` (overdue scope, addCharge), `database/seeders/RentalSeeder.php`, `tests/Feature/Rentals/RentalListTest.php`
+**Laravel concepts:**
+- **Scope with a parameter** (`overdue($graceMinutes)`).
+- **`whereHas`** = filter rentals by something in a related table (customer name, car plate).
+- **Grouped conditions** (`where(fn ...)->orWhere(...)`) = brackets in SQL, so an OR doesn't break the other filters.
+**Lesson:** the seeder (nobody logged in) crashed because `addCharge()` relied on the logged-in user for the agency → now the charge takes the agency from its rental. Same idea as before: code that may run without a user must not depend on one.
+**My notes:**
+
+**Rentals module finished:** 276 tests passing. Full lifecycle: book → (cancel / extend / pay) → hand-over → return → lists & dashboard.
+

@@ -33,5 +33,6 @@ class DatabaseSeeder extends Seeder
         $this->call(VehicleDocumentSeeder::class, parameters: ['agency' => $agency]);
         $this->call(VehicleDamageSeeder::class, parameters: ['agency' => $agency]);
         $this->call(CustomerSeeder::class, parameters: ['agency' => $agency]);
+        $this->call(RentalSeeder::class, parameters: ['agency' => $agency]);
     }
 }

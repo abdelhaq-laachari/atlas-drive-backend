@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\ChargeKind;
 use App\Enums\PaymentMethod;
+use App\Enums\RentalStatus;
 use App\Enums\VehicleStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\QuoteRentalRequest;
@@ -13,27 +14,97 @@ use App\Models\Rental;
 use App\Models\RentalPayment;
 use App\Models\Vehicle;
 use App\Support\RentalBooking;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class RentalController extends Controller
 {
     /**
-     * GET /api/rentals — newest pickup first (filters and dashboard lists come in step 5).
+     * GET /api/rentals?status=&search=&vehicle_id=&customer_id=&from=&to=&per_page=
+     * status: reserved | active (all cars out, late ones too) | overdue | completed | cancelled.
+     * from / to: agency-local days; rentals overlapping that period. Newest pickup first.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Rental::class);
 
+        $filters = $request->validate([
+            'status' => ['nullable', Rule::in([...array_column(RentalStatus::cases(), 'value'), 'overdue'])],
+            'search' => ['nullable', 'string', 'max:50'],
+            'vehicle_id' => ['nullable', 'integer'],
+            'customer_id' => ['nullable', 'integer'], // as customer or as driver
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'per_page' => ['nullable', 'integer', 'between:1,100'],
+        ]);
+
+        $agency = $request->user()->agency;
+        $timezone = $agency->timezone;
+
         $rentals = Rental::query()
             ->with(['vehicle', 'customer', 'driver', 'charges', 'payments'])
+            ->when($filters['status'] ?? null, fn ($query, $status) => $status === 'overdue'
+                ? $query->overdue($agency->late_grace_minutes)
+                : $query->where('status', $status))
+            ->when($filters['vehicle_id'] ?? null, fn ($query, $id) => $query->where('vehicle_id', $id))
+            ->when($filters['customer_id'] ?? null, fn ($query, $id) => $query->where(
+                fn ($query) => $query->where('customer_id', $id)->orWhere('driver_id', $id)
+            ))
+            ->when($filters['from'] ?? null, fn ($query, $from) => $query
+                ->where('return_at', '>=', CarbonImmutable::parse($from, $timezone)->startOfDay()))
+            ->when($filters['to'] ?? null, fn ($query, $to) => $query
+                ->where('pickup_at', '<', CarbonImmutable::parse($to, $timezone)->addDay()->startOfDay()))
+            ->when($filters['search'] ?? null, fn ($query, $search) => $this->search($query, $search))
             ->latest('pickup_at')
-            ->paginate($request->integer('per_page', 25) ?: 25);
+            ->paginate($filters['per_page'] ?? 25)
+            ->withQueryString();
 
         return RentalResource::collection($rentals);
+    }
+
+    /**
+     * Rental code (R-0012 / 12), customer or driver (name, phone), car (V-007, plate, make / model).
+     */
+    private function search($query, string $search): void
+    {
+        $query->where(function ($query) use ($search) {
+            $term = '%'.$search.'%';
+            $digits = ltrim(preg_replace('/\D/', '', $search), '0');
+
+            if ($number = Rental::numberFromCode($search, 'R-')) {
+                $query->orWhere('rental_number', $number);
+            }
+
+            $person = function ($query) use ($term, $digits) {
+                $query->where('first_name', 'like', $term)
+                    ->orWhere('last_name', 'like', $term)
+                    ->orWhereRaw("CONCAT(first_name, ' ', last_name) like ?", [$term]);
+
+                if (strlen($digits) >= 4) {
+                    $query->orWhere('phone', 'like', '%'.$digits.'%');
+                }
+            };
+
+            $query->orWhereHas('customer', $person)
+                ->orWhereHas('driver', $person)
+                ->orWhereHas('vehicle', function ($query) use ($search, $term) {
+                    $query->where('make', 'like', $term)
+                        ->orWhere('model', 'like', $term)
+                        ->orWhereRaw("CONCAT(make, ' ', model) like ?", [$term]);
+
+                    if (strlen($plateKey = Vehicle::plateKey($search)) >= 3) {
+                        $query->orWhere('plate_key', 'like', '%'.$plateKey.'%');
+                    }
+                    if ($number = Vehicle::numberFromCode($search, 'V-')) {
+                        $query->orWhere('fleet_number', $number);
+                    }
+                });
+        });
     }
 
     /**
