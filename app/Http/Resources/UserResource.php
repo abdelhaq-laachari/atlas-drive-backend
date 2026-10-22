@@ -23,6 +23,9 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role,
+            // true = the app must show "choose your own password" before anything else
+            'must_change_password' => $this->must_change_password,
+            'two_factor_enabled' => $this->hasEnabledTwoFactorAuthentication(),
             'agency' => new AgencyResource($this->whenLoaded('agency')),
         ];
     }

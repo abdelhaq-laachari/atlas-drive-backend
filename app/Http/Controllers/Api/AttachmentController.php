@@ -27,7 +27,7 @@ class AttachmentController extends Controller
     /**
      * Records that can have files (morph aliases).
      */
-    private const TYPES = ['customer', 'rental', 'vehicle', 'vehicle_document', 'vehicle_damage'];
+    private const TYPES = ['customer', 'rental', 'vehicle', 'vehicle_document', 'vehicle_damage', 'maintenance_job'];
 
     public const MAX_KB = 10240; // 10 MB
 

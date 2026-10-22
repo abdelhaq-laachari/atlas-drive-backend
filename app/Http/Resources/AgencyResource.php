@@ -25,6 +25,12 @@ class AgencyResource extends JsonResource
             'email' => $this->email,
             'address' => $this->address,
             'city' => $this->city,
+            'legal' => [
+                'ice' => $this->ice,
+                'if_number' => $this->if_number,
+                'rc_number' => $this->rc_number,
+                'patente_number' => $this->patente_number,
+            ],
             'currency' => $this->currency,
             'timezone' => $this->timezone,
             'rules' => [
@@ -34,6 +40,11 @@ class AgencyResource extends JsonResource
                 'licence_min_years' => $this->licence_min_years,
                 'document_expiring_soon_days' => $this->document_expiring_soon_days,
                 'suggest_return_prices' => $this->suggest_return_prices,
+            ],
+            // "Complete your agency" checklist
+            'setup' => [
+                'complete' => $this->missingProfileFields() === [],
+                'missing' => $this->missingProfileFields(),
             ],
         ];
     }

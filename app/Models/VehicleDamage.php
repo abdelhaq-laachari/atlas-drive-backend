@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'x',
@@ -72,6 +73,16 @@ class VehicleDamage extends Model
     public function rental(): BelongsTo
     {
         return $this->belongsTo(Rental::class);
+    }
+
+    /**
+     * What customers were charged for this damage (damage lines at return).
+     *
+     * @return HasMany<RentalCharge, $this>
+     */
+    public function charges(): HasMany
+    {
+        return $this->hasMany(RentalCharge::class);
     }
 
     public function isOpen(): bool

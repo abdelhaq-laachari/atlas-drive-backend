@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Auth;
  * - activityAction(array $changes): string — a clearer action than "updated", e.g. "archived"
  * - $activityIgnored — extra fields never logged (timestamps are always ignored)
  * - $activityMasked  — sensitive fields logged as "changed" without their values (e.g. CIN number)
+ * - $activityEvents  — only log these actions (e.g. ['updated']); default: everything
+ * - shouldLogActivity(): bool — skip logging in some situations
  */
 trait LogsActivity
 {
@@ -62,8 +64,15 @@ trait LogsActivity
      */
     protected function logActivity(string $action, ?array $changes): void
     {
+        if (property_exists($this, 'activityEvents') && ! in_array($action, $this->activityEvents, true)) {
+            return;
+        }
+        if (method_exists($this, 'shouldLogActivity') && ! $this->shouldLogActivity()) {
+            return;
+        }
+
         $log = new ActivityLog;
-        $log->agency_id = $this->agency_id;
+        $log->agency_id = method_exists($this, 'activityAgencyId') ? $this->activityAgencyId() : $this->agency_id;
         $log->user_id = Auth::id();
         $log->action = $action;
         $log->subject()->associate($this);
@@ -81,12 +90,13 @@ trait LogsActivity
      */
     protected function activityChanges(array $old, array $new): array
     {
-        $ignored = array_merge(
+        $masked = $this->activityMasked ?? [];
+        // Hidden attributes (password...) are skipped, unless masked: then logged as "(hidden)"
+        $ignored = array_diff(array_merge(
             ['id', 'agency_id', 'created_at', 'updated_at'],
             $this->getHidden(),
             $this->activityIgnored ?? [],
-        );
-        $masked = $this->activityMasked ?? [];
+        ), $masked);
 
         $changes = [];
 

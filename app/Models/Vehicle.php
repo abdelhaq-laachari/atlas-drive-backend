@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\FuelType;
+use App\Enums\MaintenanceStatus;
 use App\Enums\RentalStatus;
 use App\Enums\Transmission;
 use App\Enums\VehicleCategory;
@@ -187,6 +188,31 @@ class Vehicle extends Model
         };
 
         $this->save();
+    }
+
+    /**
+     * @return HasMany<MaintenanceJob, $this>
+     */
+    public function maintenanceJobs(): HasMany
+    {
+        return $this->hasMany(MaintenanceJob::class);
+    }
+
+    /**
+     * Back from the garage: Available (or Reserved / Rented from its rentals) unless another job
+     * still has it at the garage.
+     */
+    public function releaseFromMaintenance(): void
+    {
+        $stillAtGarage = $this->maintenanceJobs()->where('status', MaintenanceStatus::InProgress)->exists();
+
+        if ($this->status !== VehicleStatus::Maintenance || $stillAtGarage) {
+            return;
+        }
+
+        $this->status = VehicleStatus::Available;
+        $this->save();
+        $this->syncStatusWithRentals();
     }
 
     public function activityLabel(): string

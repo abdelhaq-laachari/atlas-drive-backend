@@ -18,6 +18,13 @@ return new class extends Migration
             $table->string('email')->nullable();
             $table->string('address')->nullable();
             $table->string('city')->nullable();
+            // Legal numbers printed on contracts and invoices (filled in by the owner)
+            $table->string('ice', 15)->nullable(); // Identifiant Commun de l'Entreprise (15 digits)
+            $table->string('if_number', 20)->nullable(); // Identifiant Fiscal
+            $table->string('rc_number', 30)->nullable(); // Registre de Commerce
+            $table->string('patente_number', 30)->nullable(); // Taxe professionnelle
+
+            // Set once at creation (super admin / agency:create); never changed from Settings
             $table->char('currency', 3)->default('MAD');
             $table->string('timezone')->default('Africa/Casablanca');
 

@@ -147,19 +147,22 @@ class RentalReturnController extends Controller
             }
             $rental->save();
 
-            foreach ($lines as $line) {
-                $rental->addCharge($line['kind'], $line['label'], $line['suggested'], $line['amount'], $line['note']);
-            }
-
             // New damage: on the car's record (linked to this rental) and on the rental's frozen copy
-            foreach ($validated['new_damages'] ?? [] as $mark) {
+            $damages = [];
+            foreach ($validated['new_damages'] ?? [] as $index => $mark) {
                 $damage = new VehicleDamage([...collect($mark)->except('charge')->all(), 'found_at' => $at]);
                 $damage->found_stage = DamageStage::Return;
                 $damage->rental()->associate($rental);
                 $damage->vehicle()->associate($vehicle);
                 $damage->save();
+                $damages[$index] = $damage;
 
                 RentalDamage::freeze($rental, $damage, DamageStage::Return, known: false);
+            }
+
+            foreach ($lines as $line) {
+                $damage = isset($line['damage_index']) ? $damages[$line['damage_index']] : null;
+                $rental->addCharge($line['kind'], $line['label'], $line['suggested'], $line['amount'], $line['note'], $damage);
             }
 
             if ($depositKept > 0) {
@@ -231,13 +234,14 @@ class RentalReturnController extends Controller
             throw ValidationException::withMessages($missing);
         }
 
-        foreach ($validated['new_damages'] ?? [] as $mark) {
+        foreach ($validated['new_damages'] ?? [] as $index => $mark) {
             $lines[] = [
                 'kind' => ChargeKind::Damage,
                 'label' => 'Damage: '.ucfirst($mark['type']).' - '.$mark['area'],
                 'suggested' => null,
                 'amount' => $mark['charge']['amount'],
                 'note' => $mark['charge']['note'] ?? null,
+                'damage_index' => $index, // linked to the damage once it is created
             ];
         }
 

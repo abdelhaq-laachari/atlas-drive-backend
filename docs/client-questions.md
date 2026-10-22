@@ -26,10 +26,13 @@ then tell Claude so the code and CLAUDE.md are updated.
 ## Return
 22. **Deposit:** do you give the deposit back at the return, or keep the cheque / card hold a few days
     (traffic fines, damage found later)? (Now: settled and given back at the return.)
+23. **Existing data:** do you have your cars and customers in **Excel** (or another program)? Could you share a
+    sample (without real ID numbers)? An import would save typing everything again.
 
 ## Money & invoices
-12. **VAT (TVA 20%)**: are your prices shown **with** VAT included or without? Do you need invoices with
-    HT / TVA / TTC lines and your ICE / IF / RC numbers?
+12. **VAT (TVA 20%)** — easiest: **ask your comptable (accountant)**. Are you subject to VAT? Are your prices
+    **TTC** (VAT included) or **HT**? Do you need invoices with HT / TVA / TTC lines, your ICE / IF / RC / patente,
+    and the customer's ICE for companies? (Needed before building the Invoices module.)
 
 ## Documents
 13. **"Expiring soon"** warning: **30 days** before expiry enough for insurance / inspection / vignette?

@@ -23,6 +23,8 @@ return new class extends Migration
             $table->decimal('amount', 10, 2);
             $table->string('decision', 10); // charge, reduce, waive
             $table->string('reason')->nullable();
+            // For damage lines: which damage on the car (to compare charged vs repair cost)
+            $table->foreignId('vehicle_damage_id')->nullable()->constrained()->nullOnDelete();
             $table->timestamps();
 
             $table->index(['rental_id', 'kind']);

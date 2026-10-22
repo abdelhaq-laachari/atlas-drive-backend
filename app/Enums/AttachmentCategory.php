@@ -41,6 +41,7 @@ enum AttachmentCategory: string
             'vehicle' => [self::Photo, self::Other],
             'vehicle_document' => [self::Scan],
             'vehicle_damage' => [self::Photo, self::RepairInvoice],
+            'maintenance_job' => [self::RepairInvoice, self::Photo, self::Other],
             default => [],
         };
     }

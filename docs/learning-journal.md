@@ -446,3 +446,164 @@ In Morocco agencies forgive loyal clients and negotiate. So at return the system
 
 **Rentals module finished:** 276 tests passing. Full lifecycle: book → (cancel / extend / pay) → hand-over → return → lists & dashboard.
 
+---
+
+## Module 5 — Settings
+
+**Why now:** Invoices wait for the VAT answer (ask the comptable — question #12). Settings needs no new decision and must exist before going live.
+**Plan:** 1 agency settings → 2 staff accounts → 3 my account (password) → 4 two-step verification (Google Authenticator).
+**VAT in 2 minutes:** TVA 20% in Morocco. HT = without tax, TVA = the tax, TTC = what the customer pays (1000 TTC = 833.33 HT + 166.67 TVA). Invoices show the agency's ICE / IF / RC / patente.
+
+### Decision — Onboarding a new agency (2026-10-22)
+I create **only the minimum**: agency name + city, owner name + email, a generated **temporary password**. The owner chooses their own password at first login and completes the rest (phone, address, ICE, RC...) — they know their own legal numbers, it's less work for me, and I don't handle their business papers. A **"Complete your agency" checklist** shows what's missing. Tip: do it on a call with the first clients.
+**Currency and timezone are set once** (at creation): amounts are stored as plain numbers (270 MAD → "270 €" would be wrong) and times in UTC shown in the agency's time (changing it would move past hand-over times and "today").
+
+### Step 1: Agency settings (2026-10-22)
+**What:**
+- `GET /api/settings/agency` — everyone (the app needs the rules); `PUT /api/settings/agency` — **owner only**. No id in the URL: you can only ever reach your own agency.
+- New legal fields: **ICE** (15 digits), **IF**, **RC**, **patente**. Rules editable: grace minutes, fuel price per quarter (whole dirhams), driver age, licence years, "expiring soon" days, suggest prices at return.
+- `setup: { complete, missing: [...] }` — the "Complete your agency" checklist (also in `/api/me`).
+- Every change leaves a footprint ("Agency settings — grace minutes 60 → 30").
+- `php artisan agency:create --name= --city= --owner-name= --owner-email= [--currency=MAD --timezone=Africa/Casablanca]` — creates the agency + owner, shows the temporary password **once**.
+**Files:** agencies migration (legal fields), users migration (`must_change_password`), `app/Models/Agency.php`, `app/Models/Concerns/LogsActivity.php` (`$activityEvents`, `activityAgencyId()`), `app/Policies/AgencyPolicy.php`, `app/Http/Requests/AgencySettingsRequest.php`, `app/Http/Controllers/Api/AgencySettingsController.php`, `app/Http/Resources/AgencyResource.php`, `app/Console/Commands/CreateAgency.php`, `tests/Feature/Settings/AgencySettingsTest.php`, `CreateAgencyCommandTest.php`
+**Laravel concepts:**
+- **Artisan command** = your own `php artisan ...` tool, with options and questions (Laravel Prompts `text()`).
+- **`Str::password()`** = a random password generator.
+- **`$this->artisan(...)`** in tests = run a command and check its output.
+**Lesson:** logging the agency also logged its *creation* → an extra entry in every test. Fixed with `$activityEvents = ['updated']`: a model chooses which events it logs.
+**My notes:**
+
+### Step 2: Staff accounts (2026-10-22)
+**What (owner only):**
+- `GET /api/settings/users` — the agency's users (active first): role, active or not, must change password, last login. Never the password hash or the "remember me" token.
+- `POST /api/settings/users` `{ name, email, role }` — the system generates a **temporary password**, returned **once** (and with "don't store this page" headers). Stored only as a hash; never in footprints.
+- `PUT /api/settings/users/{id}` — name, email, role.
+- `POST .../{id}/deactivate` and `.../reactivate` — never deleted (history keeps who did what).
+- `POST .../{id}/reset-password` — a new temporary password; the old one stops working at once.
+**Security rules (each tested):**
+- Another agency's user simply "doesn't exist" for this owner (404, not 403 — we don't even confirm the person exists).
+- The agency always keeps **at least one active owner**; an owner can't deactivate themselves; their own password is changed in "My account".
+- **Deactivation = three locks:** (1) open sessions deleted and "remember me" cancelled, (2) a guard on every request throws out a deactivated account, (3) login refused even with the right password. Proven on a real server with two browsers.
+**Files:** users migration (`deactivated_at`, `last_login_at`), `app/Models/User.php` (logoutEverywhere, footprints), `app/Http/Middleware/EnsureAccountIsActive.php`, `app/Http/Controllers/Api/AuthController.php`, `StaffController.php`, `app/Http/Resources/StaffResource.php`, `app/Policies/UserPolicy.php`, `routes/api.php`, `tests/Feature/Settings/StaffAccountsTest.php`
+**Laravel concepts:**
+- **Middleware** = a guard that runs before every request of a group (here: "is this account still active?").
+- **Sessions in the database** = logging someone out everywhere is just deleting their rows in `sessions`.
+- **Remember token** = the "remember me" cookie's key; changing it makes old cookies useless.
+- **Password hashing** = we never store the password itself, only a one-way fingerprint (`Hash::check` compares).
+- **Guards** = ways to know who you are ("web" = session cookie, "sanctum" = API). Login now always uses "web".
+**Lesson:** login used "whatever guard is the default"; a test showed it could be Sanctum's (which can't log in with a password) → now explicitly `Auth::guard('web')`. It worked in production only by luck.
+**My notes:**
+
+### Step 3: My account (2026-10-22)
+**What:**
+- `PUT /api/account/password` `{ current_password, password, password_confirmation }` — change my own password. Afterwards **my other devices are logged out** (and their "remember me"); this one stays logged in.
+- **Forced change:** with a temporary password (`must_change_password`), only "who am I", "log out" and "change my password" work. Everything else: *"Choose your own password first."* (`code: password_change_required`, so Vue knows where to send the user). `/api/me` returns `must_change_password`.
+- `PUT /api/account/profile` `{ name }` — my name only. The email and role are changed by the owner (otherwise someone could take over an account by changing its email).
+**Password rules:** at least 10 characters, upper + lower case, a number. On the live server, passwords found in public **data leaks** are refused (Have I Been Pwned — only the first 5 characters of the password's SHA-1 fingerprint leave the server, never the password).
+**Also:** max 6 password-change attempts per minute (guessing the current password is slowed down); a change leaves a footprint `password: (hidden)` — the owner sees *that* it changed, never *what* it is.
+**Files:** `app/Http/Controllers/Api/AccountController.php`, `app/Http/Middleware/EnsurePasswordIsChanged.php`, `app/Providers/AppServiceProvider.php` (`Password::defaults`), `app/Models/User.php`, `app/Models/Concerns/LogsActivity.php` (masked hidden fields), `app/Http/Resources/UserResource.php`, `routes/api.php`, `docs/deployment-checklist.md`, `tests/Feature/Settings/MyAccountTest.php`
+**Laravel concepts:**
+- **`current_password` rule** = checks the typed password against the logged-in user's.
+- **`Password::defaults()`** = one place for the password rules of the whole app.
+- **`confirmed`** = needs a matching `password_confirmation` field.
+- **Throttle on one route** (`throttle:6,1`) = 6 tries per minute.
+**My notes:**
+
+### Step 4: Two-step verification — Google Authenticator (2026-10-22)
+**How it works:** the phone app and the server share a secret (from the QR code). Both calculate the same 6-digit code from the current time (a new one every 30 s) — no internet, no SMS, free.
+**What:**
+- **Turn on:** `POST /api/account/two-factor` (current password) → a **QR code** to scan + a setup key to type by hand → `POST /api/account/two-factor/confirm` with the 6-digit code → it's **on** + **8 recovery codes** shown once (one-time backup codes if the phone is lost).
+- **Log in:** `POST /api/login` → `{ "two_factor": true }` (not logged in yet; the "password OK" step is remembered 5 minutes, only on the server) → `POST /api/login/two-factor` with the code (or a recovery code) → logged in.
+- `POST /api/account/two-factor/recovery-codes` (new codes) and `DELETE /api/account/two-factor` (turn off) — both need the password.
+- **Owner:** `POST /api/settings/users/{id}/reset-two-factor` for a staff member who lost their phone *and* their recovery codes.
+**Security (each tested):** on only after a correct phone code; each code works **once**; 5 tries per minute; the code step is useless without the password step and expires after 5 minutes; a deactivated account can't finish; the secret and recovery codes are **encrypted** (APP_KEY) and never in any answer or footprint; answers with secrets are not cached by the browser.
+**Fortify:** Laravel's official package, used **only** for its two-step part (no Fortify login pages, no public sign-up — they were in its default config and I removed them).
+**Files:** `config/fortify.php`, `database/migrations/..._add_two_factor_columns_to_users_table.php`, `app/Models/User.php`, `app/Http/Controllers/Api/AuthController.php` (two-step login), `TwoFactorController.php`, `StaffController.php` (reset), `app/Providers/AppServiceProvider.php` (ignoreRoutes, limiter), `app/Http/Resources/UserResource.php`, `StaffResource.php`, `docs/deployment-checklist.md`, `tests/Feature/Settings/TwoFactorTest.php`
+**Laravel concepts:**
+- **Composer package + publishing** (`vendor:publish`) = take a package's config / migration into your project to adjust them.
+- **Actions** (`EnableTwoFactorAuthentication`...) = small classes that do one job, injected into the controller.
+- **TOTP** = Time-based One-Time Password (the standard behind Google Authenticator).
+- **Cache as a lock** = remember "this code was used" for 2 minutes.
+**Lessons:**
+- Fortify's default config turned on public **registration** and more → always read a package's defaults; keep only what you use.
+- Without the `confirm` option, two-step would be "on" before the phone ever proved it works → a user could lock themselves out.
+- A test found that Fortify lets a code from the *next* 30-second period be used **twice** → we added our own "used once" lock. Never assume a library is perfect: test the security promise.
+**My notes:**
+
+**Settings module finished:** 325 tests passing.
+
+### Decision — Phone code optional, reset later (2026-10-22)
+**Optional for everyone** for now: the dashboard shows a reminder banner ("Protect your account — 2 minutes"). Setup is on screen: install Google Authenticator → scan the QR code shown on the computer → type the 6-digit code → print the 8 recovery codes. Best done together on the first call.
+**If an owner loses phone + recovery codes (later):** I reset it as super admin — but only after **verifying who is calling** (call back the number I already have, never the caller's number), with a written reason, and the owner sees "Atlas Drive support reset your two-step verification" in his footprints. Not built now: only one client.
+**My notes:**
+
+### Decision — Booking requests: only from websites we build (2026-10-22)
+A booking request = a **lead** (someone interested, not a customer yet); turning it into a reservation = **converting** (like Salesforce).
+**Decision:** requests come **only from public websites we build** (my friend's first). Agencies that want online booking can **pay us for a website**. No forms on other people's websites, no hosted booking pages for now — simpler, safer, and a paid service.
+**Note:** a booking form can't open our database — the endpoint only *drops* a request into one table and can read nothing. The real risk of outside websites is spam / fake requests. Still: fewer doors = fewer things to watch.
+**When:** the inbox is built when the public website is being built.
+**My notes:**
+
+---
+
+## Module 6 — Maintenance
+
+**Plan:** 1 maintenance jobs → 2 service plans & reminders ("oil change every 10,000 km / 12 months") → 3 costs & "repair cost vs amount charged".
+**Garage work only:** insurance, inspection and vignette are documents (Vehicles module), not maintenance.
+
+### Step 1: Maintenance jobs (2026-10-22)
+**What:**
+- `GET /api/maintenance?status=&vehicle_id=&type=&from=&to=`, `POST /api/maintenance` (schedule), `GET|PUT|DELETE /api/maintenance/{id}`.
+- `POST /api/maintenance/{id}/start` → the car goes to the garage: status **In maintenance**. Refused while a customer has the car; **warns** if bookings are waiting for it.
+- `POST /api/maintenance/{id}/finish` `{ at?, mileage?, cost?, garage?, description? }` → done; the car comes back (**Available**, or Reserved if a booking waits; stays at the garage if another job is still running); its km is updated. A scheduled job can be finished directly to record work already done.
+- `POST /api/maintenance/{id}/cancel` `{ reason }` → a started job also brings the car back.
+- Types: oil change (vidange), tyres, brakes, battery, general service (révision), repair, bodywork (carrosserie), other.
+- Garage invoice scan = attachment on the job. Footprints: created, started, completed, cancelled.
+- Sample data: V-009 at the garage, V-004 oil change in 2 days, V-008 tyres in 5 days, V-002 oil change done (450 MAD).
+**Who:** staff do the daily work; only the owner deletes a job (never while the car is at the garage).
+**Files:** `database/migrations/..._create_maintenance_jobs_table.php`, `app/Models/MaintenanceJob.php`, `app/Enums/MaintenanceType.php`, `MaintenanceStatus.php`, `app/Models/Vehicle.php` (`releaseFromMaintenance`), `app/Policies/MaintenanceJobPolicy.php`, `app/Http/Controllers/Api/MaintenanceJobController.php`, `app/Http/Resources/MaintenanceJobResource.php`, `database/factories/MaintenanceJobFactory.php`, `database/seeders/MaintenanceSeeder.php`, `tests/Feature/Maintenance/MaintenanceJobTest.php`
+**Laravel concepts:** the same patterns as rentals — a small state machine (scheduled → in progress → done), a car status that **follows** the job, a lock on the car row while it changes.
+**Lesson:** the date filter first compared days in UTC — the same timezone trap as before → filters use the agency's own day.
+**My notes:**
+
+### Step 2: Service plans & reminders (2026-10-22)
+**What:**
+- A **plan** per car and type: *"oil change every 10,000 km **or** 12 months"* — km, months or both, **whichever comes first**.
+- **Starting point:** the last **finished** job of that type (its date and km). For a car new in the system: the date and km typed when creating the plan (default: today and the car's km).
+- **Next due:** date and/or km → `days_left`, `km_left` → **ok / due soon** (≤ 14 days or ≤ 1,000 km) / **overdue**. If a job is already planned, it's shown with the reminder.
+- Finishing a job **resets** the reminder automatically (it becomes the new starting point).
+- `GET /api/maintenance/upcoming` → the dashboard card, most urgent first (`?all=1` for everything). `GET|POST /api/vehicles/{id}/maintenance-plans`, `PUT|DELETE /api/maintenance-plans/{id}` (delete: owner).
+- The car's km stays up to date by itself (hand-over, return, garage), so km reminders just work.
+**Sample:** every car has an oil-change plan; V-005 overdue, V-004 due soon (400 km), V-008 tyres due soon (600 km).
+**Files:** `database/migrations/..._create_maintenance_plans_table.php`, `app/Models/MaintenancePlan.php`, `app/Support/MaintenanceSchedule.php`, `app/Policies/MaintenancePlanPolicy.php`, `app/Http/Controllers/Api/MaintenancePlanController.php`, `database/factories/MaintenancePlanFactory.php`, `database/seeders/MaintenanceSeeder.php`, `tests/Feature/Maintenance/MaintenancePlanTest.php`
+**Laravel concepts:**
+- **`addMonthsNoOverflow`** = 31 January + 1 month = 28/29 February (not 3 March).
+- **Eager loading nested relations** (`vehicle.maintenanceJobs`) = one query for all the plans' cars and jobs.
+- **`whereHas` + scope** (`inFleet`) = only plans of cars still in the fleet.
+**My notes:**
+
+### Step 3: Costs & damage report (2026-10-22)
+**What (owner only — money):**
+- `GET /api/reports/maintenance-costs?from=&to=` — garage costs (finished jobs) + damage repair costs in the period: totals, **per car** (most expensive first), **per month**. Default: the last 30 days (the dashboard can ask for the last 7).
+- `GET /api/reports/damages?from=&to=` — each damage found during a rental: car, rental, customer, **charged to the customer**, **repair cost**, **difference** (+ = the customer paid more than the repair, − = the agency lost money), and totals. Example: charged 300, repaired for 400 → **−100**.
+**The link:** at return, the "Damage: Scratch – Rear bumper" charge line now knows **which damage** it is (`vehicle_damage_id`), so the report can compare it with the repair later. A forgiven damage shows "charged 0 — waive"; a damage not repaired yet shows no difference (cost unknown).
+**Files:** rental_charges migration (`vehicle_damage_id`), `app/Models/Rental.php` (addCharge), `RentalCharge.php`, `VehicleDamage.php` (charges), `app/Http/Controllers/Api/RentalReturnController.php` (damage created first, then its charge), `ReportController.php`, `app/Providers/AppServiceProvider.php` (`viewReports` gate), `tests/Feature/Maintenance/ReportTest.php`
+**Laravel concepts:**
+- **`Gate::define`** = a permission that isn't about one model ("can see reports?").
+- **Collections for reports** = `groupBy`, `map`, `sortByDesc` on the results (fine for one agency's data).
+**My notes:**
+
+**Maintenance module finished:** 362 tests passing.
+
+---
+
+## Preparing the merge into the new Vuexy (2026-10-22)
+**Why:** when I buy the new Vuexy (Laravel + Vue 3), this backend goes **into** that project (one folder). A wrong copy could silently break security or lose features.
+**What:** `docs/merge/` —
+- `MERGE-INTO-VUEXY.md`: rules (work on a copy, never overwrite Vuexy files blindly, tests are the referee, no commits), **compatibility check first** (PHP ≥ 8.3, **Laravel 13** required, Sanctum 4, Fortify 1.41, MySQL 8, gd/exif/fileinfo), inventory of Vuexy, the merge steps (packages → copy → merge by hand → regenerate → .env), the verification (same 362+ tests, all routes, real login flow, security checks), known traps.
+- `files-manifest.txt`: the 228 files of the backend: **180 copy, 10 merge by hand, 38 regenerate**.
+- `api-routes-snapshot.txt`: the 78 API routes that must exist after the merge.
+**Cleanup:** removed an unused `create_passkeys_table` migration that Fortify's publish command had added (passkeys are off).
+**Key point:** if the new Vuexy has an older Laravel, **upgrade Vuexy**, never downgrade our code (it uses Laravel 13 features).
+**My notes:**
+

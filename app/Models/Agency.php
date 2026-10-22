@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Database\Factories\AgencyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,6 +15,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'email',
     'address',
     'city',
+    'ice',
+    'if_number',
+    'rc_number',
+    'patente_number',
     'currency',
     'timezone',
     'late_grace_minutes',
@@ -26,7 +31,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Agency extends Model
 {
     /** @use HasFactory<AgencyFactory> */
-    use HasFactory;
+    use HasFactory, LogsActivity;
+
+    /**
+     * Shown in the "Complete your agency" checklist until filled in.
+     */
+    /**
+     * Footprints: only the owner's changes in Settings (creation is done by the super admin).
+     *
+     * @var list<string>
+     */
+    protected array $activityEvents = ['updated'];
+
+    public const PROFILE_FIELDS = ['phone', 'email', 'address', 'city', 'ice', 'if_number', 'rc_number', 'patente_number'];
 
     /**
      * Defaults visible before the agency is saved (same values as the migration).
@@ -59,6 +76,29 @@ class Agency extends Model
             'document_expiring_soon_days' => 'integer',
             'suggest_return_prices' => 'boolean',
         ];
+    }
+
+    /**
+     * Profile fields still empty (for the "Complete your agency" checklist).
+     *
+     * @return list<string>
+     */
+    public function missingProfileFields(): array
+    {
+        return array_values(array_filter(self::PROFILE_FIELDS, fn (string $field) => blank($this->{$field})));
+    }
+
+    /**
+     * Footprints: an agency is its own agency.
+     */
+    public function activityAgencyId(): int
+    {
+        return $this->id;
+    }
+
+    public function activityLabel(): string
+    {
+        return 'Agency settings';
     }
 
     /**

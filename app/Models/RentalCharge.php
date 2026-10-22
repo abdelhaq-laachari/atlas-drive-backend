@@ -39,6 +39,16 @@ class RentalCharge extends Model
         return $this->belongsTo(Rental::class);
     }
 
+    /**
+     * For damage lines: the damage on the car this amount was charged for.
+     *
+     * @return BelongsTo<VehicleDamage, $this>
+     */
+    public function vehicleDamage(): BelongsTo
+    {
+        return $this->belongsTo(VehicleDamage::class);
+    }
+
     public function activityLabel(): string
     {
         return $this->rental?->rental_code.' '.$this->label;
