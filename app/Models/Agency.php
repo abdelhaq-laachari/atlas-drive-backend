@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'driver_min_age',
     'licence_min_years',
     'document_expiring_soon_days',
+    'suggest_return_prices',
 ])]
 class Agency extends Model
 {
@@ -40,6 +41,7 @@ class Agency extends Model
         'driver_min_age' => 21,
         'licence_min_years' => 2,
         'document_expiring_soon_days' => 30,
+        'suggest_return_prices' => false,
     ];
 
     /**
@@ -55,6 +57,7 @@ class Agency extends Model
             'driver_min_age' => 'integer',
             'licence_min_years' => 'integer',
             'document_expiring_soon_days' => 'integer',
+            'suggest_return_prices' => 'boolean',
         ];
     }
 

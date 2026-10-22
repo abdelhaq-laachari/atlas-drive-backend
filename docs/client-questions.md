@@ -23,6 +23,10 @@ then tell Claude so the code and CLAUDE.md are updated.
 10. **Extras** offered and their prices (child seat, GPS, extra driver, delivery to airport/hotel...)?
 11. **Weekly / monthly prices:** fixed per car, or calculated (sample: weekly = 6 × daily, monthly = 22 × daily)?
 
+## Return
+22. **Deposit:** do you give the deposit back at the return, or keep the cheque / card hold a few days
+    (traffic fines, damage found later)? (Now: settled and given back at the return.)
+
 ## Money & invoices
 12. **VAT (TVA 20%)**: are your prices shown **with** VAT included or without? Do you need invoices with
     HT / TVA / TTC lines and your ICE / IF / RC numbers?

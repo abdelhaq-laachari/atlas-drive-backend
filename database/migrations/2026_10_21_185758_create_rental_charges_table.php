@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignId('rental_id')->constrained()->cascadeOnDelete();
             $table->string('kind', 20); // rental, extension, late, extra_km, fuel, damage, extra
             $table->string('label'); // "Rental 4 days x 270 MAD"
-            $table->decimal('suggested', 10, 2);
+            $table->decimal('suggested', 10, 2)->nullable(); // null = no price suggested (return facts)
             $table->decimal('amount', 10, 2);
             $table->string('decision', 10); // charge, reduce, waive
             $table->string('reason')->nullable();

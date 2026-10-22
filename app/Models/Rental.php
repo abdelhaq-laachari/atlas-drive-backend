@@ -145,9 +145,10 @@ class Rental extends Model
     }
 
     /**
-     * Add a charge line. The decision (charge / reduce / waive) follows from suggested vs amount.
+     * Add a charge line. The decision (charge / reduce / waive) follows from suggested vs amount;
+     * with no suggested price (return facts), 0 = waive ("no charge").
      */
-    public function addCharge(ChargeKind $kind, string $label, int|float|string $suggested, int|float|string $amount, ?string $reason = null): RentalCharge
+    public function addCharge(ChargeKind $kind, string $label, int|float|string|null $suggested, int|float|string $amount, ?string $reason = null): RentalCharge
     {
         $decision = ChargeDecision::for($suggested, $amount);
 
@@ -155,10 +156,11 @@ class Rental extends Model
         $charge->rental()->associate($this);
         $charge->kind = $kind;
         $charge->label = $label;
-        $charge->suggested = Money::round($suggested);
+        $charge->suggested = $suggested === null ? null : Money::round($suggested);
         $charge->amount = Money::round($amount);
         $charge->decision = $decision;
-        $charge->reason = $decision->needsReason() ? $reason : null;
+        // Without a suggestion the note is the agent's free comment ("loyal client"); with one, it explains a discount.
+        $charge->reason = ($suggested === null || $decision->needsReason()) ? $reason : null;
         $charge->save();
 
         return $charge;

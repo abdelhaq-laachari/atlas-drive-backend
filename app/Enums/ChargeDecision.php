@@ -13,10 +13,18 @@ enum ChargeDecision: string
     case Reduce = 'reduce';
     case Waive = 'waive';
 
-    public static function for(int|float|string $suggested, int|float|string $amount): self
+    /**
+     * No suggested price (return facts): 0 = waive ("no charge"), anything else = charge.
+     */
+    public static function for(int|float|string|null $suggested, int|float|string $amount): self
     {
-        $suggested = Money::cents($suggested);
         $amount = Money::cents($amount);
+
+        if ($suggested === null) {
+            return $amount === 0 ? self::Waive : self::Charge;
+        }
+
+        $suggested = Money::cents($suggested);
 
         return match (true) {
             $amount === 0 && $suggested > 0 => self::Waive,

@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\RentalController;
 use App\Http\Controllers\Api\RentalExtensionController;
 use App\Http\Controllers\Api\RentalHandoverController;
 use App\Http\Controllers\Api\RentalPaymentController;
+use App\Http\Controllers\Api\RentalReturnController;
 use App\Http\Controllers\Api\VehicleArchiveController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VehicleDamageController;
@@ -76,4 +77,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/rentals/{rental}/payments', [RentalPaymentController::class, 'store']);
     Route::get('/rentals/{rental}/handover', [RentalHandoverController::class, 'show']);
     Route::post('/rentals/{rental}/handover', [RentalHandoverController::class, 'store']);
+    Route::get('/rentals/{rental}/return', [RentalReturnController::class, 'show']);
+    Route::post('/rentals/{rental}/return', [RentalReturnController::class, 'store']);
 });

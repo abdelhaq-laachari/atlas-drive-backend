@@ -33,6 +33,7 @@ class AgencyResource extends JsonResource
                 'driver_min_age' => $this->driver_min_age,
                 'licence_min_years' => $this->licence_min_years,
                 'document_expiring_soon_days' => $this->document_expiring_soon_days,
+                'suggest_return_prices' => $this->suggest_return_prices,
             ],
         ];
     }

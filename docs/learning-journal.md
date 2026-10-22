@@ -411,3 +411,22 @@ WebP is ~25–35% smaller than JPEG, but for us it saves only ~2 GB/year (the bi
 - Again the testing trap: "another agency" data must be created while nobody is logged in.
 **My notes:**
 
+### Decision — Return: facts, not prices (2026-10-22)
+In Morocco agencies forgive loyal clients and negotiate. So at return the system **shows the facts** and **suggests no price**: "this customer drove 120 km over, came back 3 h late, 2 quarters of fuel missing, a new scratch — your call."
+**But every fact needs a decision:** charge X MAD, or **no charge** (0), with an optional note → the owner can tell *forgiven* from *forgotten*.
+**Kept for later:** price suggestions (fuel 150 MAD/quarter, car's extra-km fee, daily price for late days) are coded but **off** — agency setting `suggest_return_prices`. A SaaS option each agency can choose.
+**Extensions** keep their calculated price (extra days × daily price): that's the normal rental price, not a penalty.
+
+### Step 4: Return (2026-10-22)
+**What:**
+- `GET /api/rentals/{id}/return?at=&mileage=&fuel=` — preview: facts, the hand-over damage (drawn on the diagram), deposit, total / paid / balance.
+- `POST /api/rentals/{id}/return` — `{ at?, mileage, fuel, remarks?, charges: {extra_km, late, fuel}, new_damages: [... + charge], extra_charges?, deposit_kept?, payment? }` → rental **Completed**, car **Available** (or Reserved if the next booking is waiting), car km updated.
+**Facts:** km driven vs included (250/day × days; unlimited = never over), late time in words ("3 h 15 late") + extra days (beyond the 60-min grace, same day-counting rule), fuel quarters missing, unused days when early.
+**Money:** each decision becomes a charge line ("Late return: 3 h 15 late (1 extra day)" — 0 MAD — waive — "Called ahead, loyal client"). Settlement: keep part of the deposit (never more than the deposit or than what is due) and/or a payment; the rest of the deposit is given back.
+**Files:** `app/Support/ReturnFacts.php`, `app/Http/Controllers/Api/RentalReturnController.php`, `app/Enums/ChargeDecision.php` (no suggested price), `app/Models/Rental.php` (addCharge), agencies migration (`suggest_return_prices`), rental_charges migration (`suggested` nullable), `tests/Feature/Rentals/RentalReturnTest.php`
+**Laravel concepts:**
+- **Nested validation** (`charges.*.amount`, `new_damages.*.charge.amount`) with your own messages.
+- **A feature flag** (`suggest_return_prices`) = code that exists but is switched on per agency.
+**Lesson:** a test failed by 2 minutes ("3 h 17" instead of "3 h 15") because it didn't send a return time and "now" was used — the system was right, the test was imprecise.
+**My notes:**
+

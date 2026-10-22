@@ -27,6 +27,8 @@ return new class extends Migration
             $table->unsignedTinyInteger('driver_min_age')->default(21);
             $table->unsignedTinyInteger('licence_min_years')->default(2);
             $table->unsignedSmallInteger('document_expiring_soon_days')->default(30);
+            // Off: at return the system shows facts only and the agent decides the price.
+            $table->boolean('suggest_return_prices')->default(false);
 
             $table->timestamps();
         });
