@@ -1,7 +1,9 @@
-# Questions for the client (agency owner)
+# Market questions (for agencies)
 
-Open questions to ask at the next meeting. When answered, write the answer under the question and the date,
-then tell Claude so the code and CLAUDE.md are updated.
+Atlas Drive is now a **generic SaaS** (decided 2026-10-26). These questions are asked to real agencies **after
+~5 of them subscribe** (MVP first). Until then, each answer is an **agency setting with a sensible default**
+(the values written below are those defaults). When agencies answer, write the answers + date here and tell
+Claude, so defaults, settings and CLAUDE.md are updated.
 
 ## Users & permissions
 1. **Roles or per-person permissions?** Are two fixed roles enough (Owner = everything, Staff = daily work),
@@ -58,8 +60,9 @@ then tell Claude so the code and CLAUDE.md are updated.
 ---
 
 # Before selling the SaaS (for me, not for the client)
+- **Brand SiyaRent:** check `siyarent.ma` / `.com`, register the trademark at **OMPIC**, reserve `@siyarent` on Instagram / Facebook.
 - **Talk once to a Moroccan lawyer:** check the contract / terms of use with agencies (data access only for support,
   security or legal reasons; owner-granted support access), my role as service provider under law 09-08, and how
   agencies declare their customer files to the **CNDP**.
-- Check the Vuexy licence allows SaaS use (Extended licence).
+- Dashboard template: Materio Free (MIT) — keep its LICENSE notice in the code; never copy Vuexy or other paid template code.
 

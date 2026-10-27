@@ -1,4 +1,4 @@
-# Atlas Drive backend — API routes snapshot (before the Vuexy merge)
+# Atlas Drive backend — API routes snapshot (before the merge into the dashboard project)
 # Format: METHOD  URI  →  action  [middleware]
 # After the merge, `php artisan route:list --path=api` must contain every line below (same method, URI and controller).
 

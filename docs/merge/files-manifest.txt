@@ -3,10 +3,10 @@
 # Before merging, regenerate it from the backend repo to include later work:
 #   git diff --name-status b333be1 -- . ; git ls-files --others --exclude-standard
 #
-# COPY       = our own file; copy into the Vuexy project at the SAME path. If Vuexy already has a file
+# COPY       = our own file; copy into the dashboard project at the SAME path. If the dashboard already has a file
 #              at that path, STOP and treat it as MERGE.
-# MERGE      = both projects have it (or will): combine by hand, keep Vuexy's needs AND all of our behavior.
-# REGENERATE = do not copy; recreate in the Vuexy project with the command given in MERGE-INTO-VUEXY.md.
+# MERGE      = both projects have it (or will): combine by hand, keep the template's needs AND all of our behavior.
+# REGENERATE = do not copy; recreate in the dashboard project with the command given in MERGE-INTO-DASHBOARD.md.
 
 ## MERGE (10 files)
 CLAUDE.md
@@ -243,6 +243,6 @@ tests/Unit/Rules/WholeDirhamsTest.php
 tests/Unit/Support/MoneyTest.php
 
 ## ALSO (not files in git, but required)
-.env keys (see MERGE-INTO-VUEXY.md, section 5)
+.env keys (see MERGE-INTO-DASHBOARD.md, section 5)
 storage/app/private/  — NEVER copy dev files; real files come from the live server backup (+ the SAME APP_KEY)
-routes/web.php — Vuexy's SPA catch-all must not swallow /api, /sanctum, /up
+routes/web.php — the template's SPA catch-all must not swallow /api, /sanctum, /up

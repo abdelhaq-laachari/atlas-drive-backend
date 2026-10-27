@@ -607,3 +607,38 @@ A booking request = a **lead** (someone interested, not a customer yet); turning
 **Key point:** if the new Vuexy has an older Laravel, **upgrade Vuexy**, never downgrade our code (it uses Laravel 13 features).
 **My notes:**
 
+---
+
+## Decisions — SaaS first, free template (2026-10-26 / 27)
+**SaaS first:** the friend stopped answering → Atlas Drive becomes a **generic SaaS** for Moroccan agencies. MVP with sensible defaults (every choice an agency setting); the market questions are asked after ~5 paying agencies. The friend can subscribe later like anyone (+ a paid website if he wants).
+**Template:** a SaaS with paying users needs a paid template's **Extended** licence (Vuexy: too expensive now). Hiding a template's origin doesn't make it legal → chose a **free MIT template** instead: **Materio Free** (Vuetify + Vue 3 + Laravel, TypeScript), same design family as Vuexy, no forced credit link. Runner-up: Sneat Free (requires a footer credit). Downloaded at `~/Desktop/SiyaRent`.
+**Licence rule:** keep Materio's LICENSE notice in the code; from the v8 prototype reuse only **my own** logic and data shapes, never Vuexy's template code.
+**Design:** make it smooth and modern through the Vuetify theme (palette, rounder corners, soft shadows, modern font, status pills, transitions, skeletons, empty states, dark mode) — visual preview first.
+**Merge guide updated:** `docs/merge/MERGE-INTO-DASHBOARD.md` (was MERGE-INTO-VUEXY.md): Materio location, MIT licence, **Step A0 = upgrade Laravel 11 → 13 first**, no backend auth in the template (ours replaces it), pnpm, and the new order: design → screens → Super admin → Subscriptions → Invoices.
+**My notes:**
+
+### Decision — The name: SiyaRent (2026-10-27)
+Candidates: **Rentify** (already a rental SaaS by FATbit + very generic → no), **FleetOS** (used by Rivian and others → trademark risk, and sounds like GPS tracking → no), **SiyaRent** (no company found with that name; *Siya* recalls *sayara* سيارة + *Rent*; also sounds like "see ya" → **chosen**).
+**Rule:** "Atlas Drive" stays the internal code name; everything users see says **SiyaRent**.
+**To do before launch:** domain (`siyarent.ma` / `.com`), OMPIC trademark, `@siyarent` on social media.
+**My notes:**
+
+---
+
+## Dashboard project — step A0: Materio upgraded to Laravel 13 (2026-10-27)
+**Where:** the template is in `~/Desktop/SiyaRent` (TypeScript version, git: "Materio original").
+**Problem:** `composer install` failed — the template's locked packages accept PHP 8.1–8.4 only (my Mac has 8.5). `composer update` failed too: Composer **refuses every Laravel 11 version** because of published security advisories. → We must not switch that protection off; the fix is upgrading to Laravel 13 (planned anyway).
+**What was done:**
+- Copied the MIT `LICENSE` into the project (it was only in the zip's parent folder; MIT requires keeping it).
+- The template's Laravel side was stock Laravel 11 + one customisation (`routes/web.php`: every URL → the Vue app). So the 24 standard Laravel files were replaced by their **Laravel 13** versions (from the backend's first commit = a fresh Laravel 13), keeping the template's own route, view and `VITE_*` keys.
+- `composer.json` = Laravel 13's (+ Sail for the template's docker file, pnpm in the setup script) → `composer update` → **Laravel 13.38.0**, no security advisories.
+- Front-end: `npx pnpm@9 install` (pnpm not installed globally — `npx` runs it without installing), `pnpm build` OK.
+- Checked: the template's tests pass, the pages answer 200, `/up` still works.
+**Laravel / tools concepts:**
+- **composer.lock** = the exact package versions; old locks can block a newer PHP.
+- **Security advisories** = Composer won't install versions with known vulnerabilities (good!).
+- **Comparing with a fresh install** = the safest way to upgrade a project that barely changed the framework files.
+- **pnpm / npx** = another package manager like npm; `npx` runs a tool once without installing it globally.
+**Next:** I commit "Upgrade to Laravel 13" in `SiyaRent`, then the merge (compatibility report first).
+**My notes:**
+

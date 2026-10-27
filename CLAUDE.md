@@ -1,13 +1,20 @@
-# Atlas Drive — backend
+# Atlas Drive — backend (product name: **SiyaRent**)
 
-Back office for a car-rental agency (first customer: a friend's agency in Morocco; later sold as a SaaS to other agencies).
+**Brand (decided 2026-10-27): the SaaS is sold as "SiyaRent"** (tagline e.g. "SiyaRent — gestion de location de voitures").
+"Atlas Drive" stays the internal project / repo name; user-facing texts (app name, page titles, emails, logo, domain) use SiyaRent.
+Before launch: check the domain (siyarent.ma / .com), register the trademark at OMPIC, reserve @siyarent on social media.
+
+Back office for car-rental agencies, built as a **generic SaaS** for Moroccan agencies (decided 2026-10-26: no longer
+customised for one client; the friend may later subscribe like any agency). **MVP first:** every client-specific
+choice is an agency setting with a sensible default; `docs/client-questions.md` is asked after ~5 paying agencies.
 
 ## What this project is
 
-- Laravel 13 + MySQL (`atlas_drive`, tests on `atlas_drive_test`). The backend logic (migrations, models, business rules, routes, tests) is built here first.
-- The UI prototype lives in a separate Vuexy v8 project (Vue 2): `~/dashboard/Dashboard_maska/vuexy-admin-v8.2.2/vue-laravel-version/vuexy-bootstrapvue/full-version`. Its sample data and stores (`vehicleStore.js`, `rentalStore.js`, `rentalOptions.js`…) show the agreed data shapes and rules.
-- When the user buys the new Vuexy (Laravel + Vue 3), this backend is **copied into that project** → one single project folder. Keep code standard Laravel so it moves easily (no exotic packages).
-- **Merging into the new Vuexy: follow `docs/merge/MERGE-INTO-VUEXY.md` exactly** (compatibility check first, file manifest, routes snapshot, verification). Never start merging without reading it.
+- Laravel 13 + MySQL (`atlas_drive`, tests on `atlas_drive_test`). The backend logic (migrations, models, business rules, routes, tests) is built here first. Backend beta committed 2026-10-22 (362 tests).
+- The UI prototype lives in a separate Vuexy v8 project (Vue 2): `~/dashboard/Dashboard_maska/vuexy-admin-v8.2.2/vue-laravel-version/vuexy-bootstrapvue/full-version`. Its sample data and stores (`vehicleStore.js`, `rentalStore.js`, `rentalOptions.js`…) show the agreed data shapes and rules. Reuse only the user's own logic from it — never Vuexy template code (licence).
+- **Dashboard (UI) template, decided 2026-10-27: Materio Free (Vuetify, Vue 3, Laravel, TypeScript, MIT licence)** by ThemeSelection, downloaded at `/Users/godfather/Desktop/SiyaRent`. This backend is **copied into that project** → one single project folder. Keep code standard Laravel so it moves easily (no exotic packages).
+- **Merging into the dashboard: follow `docs/merge/MERGE-INTO-DASHBOARD.md` exactly** (compatibility check first — the template ships Laravel 11 and must be upgraded to 13 —, file manifest, routes snapshot, verification). Never start merging without reading it.
+- Order after the merge: design system (visual preview first) → connect the screens module by module → **Super admin → Subscriptions → Invoices** (VAT configurable per agency) → legal + hosting → first paying agencies.
 
 ## Conventions
 
@@ -30,7 +37,7 @@ Back office for a car-rental agency (first customer: a friend's agency in Morocc
 - Activity log (footprints): every tenant model also uses `App\Models\Concerns\LogsActivity` and is added to the morph map in `AppServiceProvider` (`'vehicle' => Vehicle::class`). Define `activityLabel()` (e.g. "V-011 Dacia Logan") and, when useful, `activityAction()` (archived, status_changed...). Sensitive personal values (CIN, passport, licence numbers...) go in `$activityMasked`. Logs are read-only (no edit/delete, ever); created / updated / deleted are logged automatically; `GET /api/activity` is owner-only. Column is `diff`, never `changes` (Eloquent internal name).
 - Errors (Laravel defaults + one override): 401 `Unauthenticated.`, 403 forbidden (role), 404 always `{ "message": "Not found." }` (no model/route names), 409 not allowed in the current state (e.g. editing an archived car), 419 CSRF expired, 422 `{ message, errors: { field: [..] } }`, 429 too many attempts.
 - Dates: stored in UTC, sent as ISO 8601; business rules (day counting, late) are computed in the agency's timezone (`agencies.timezone`, default Africa/Casablanca).
-- Build module by module: Foundation → Vehicles → Customers → Rentals → Invoices → Maintenance → Settings → Booking requests → Super admin (SaaS) → Subscriptions & payments.
+- Build module by module. Done: Foundation, Vehicles, Customers, Attachments, Rentals, Settings, Maintenance. Next (after the dashboard merge): Super admin → Subscriptions → Invoices; later Booking requests (with websites we build).
 - Super admin (SaaS, after the first client is live): separate `admins` table and its own login — never a role on `users`, so it stays outside the agency guard (`BelongsToAgency`). Manages agencies (create agency + owner, suspend/activate, plan & subscription status) and sees usage numbers (cars, rentals, staff, last login), not agencies' customer personal data (Moroccan law 09-08). Support access: see the owner-granted rule below.
 - Onboarding (agreed 2026-10-22): the super admin (for now `php artisan agency:create`) creates only the agency (name, city, currency + timezone — set once, never editable in Settings) and the owner (name, email, generated temporary password shown once, `must_change_password`). The owner completes the rest in Settings; `agency.setup.missing` lists empty profile fields (phone, email, address, city, ICE, IF, RC, patente) for a "Complete your agency" checklist.
 - Agency settings: `GET /api/settings/agency` (everyone in the agency), `PUT` (owner only): identity, legal numbers (ICE 15 digits, IF, RC, patente), rules. Changes logged (Agency logs `updated` only — `$activityEvents`).
